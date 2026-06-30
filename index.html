@@ -4,7 +4,42 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gitmeriz</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Riz</title>
+    <script>
+      // Prevent flash by setting theme before page renders
+      (function() {
+        const theme = localStorage.getItem('theme') || 
+          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.classList.add(theme);
+        // Apply colors immediately with inline style
+        if (theme === 'dark') {
+          document.documentElement.style.backgroundColor = '#19161D';
+          document.documentElement.style.color = '#FAFAFA';
+        } else {
+          document.documentElement.style.backgroundColor = '#F4F3F6';
+          document.documentElement.style.color = '#0F0F0F';
+        }
+      })();
+    </script>
+    <style>
+      /* Critical CSS to prevent flash */
+      html, body {
+        margin: 0;
+        padding: 0;
+        transition: none !important;
+      }
+      html.dark {
+        background-color: #19161D;
+        color: #FAFAFA;
+      }
+      html.light {
+        background-color: #F4F3F6;
+        color: #0F0F0F;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
