@@ -1,5 +1,18 @@
 import { Link } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
+import NavDropdown from './NavDropdown'
+
+const mediaItems = [
+  { label: 'Gallery', to: '/gallery' },
+  { label: 'Video', to: '/video' },
+  { label: 'Audio', to: '/audio' },
+]
+
+const workspaceItems = [
+  { label: 'Blog', to: '/blog' },
+  { label: 'Notes', to: '/notes' },
+  { label: 'Clipboard', to: '/clipboard' },
+]
 
 function Navbar() {
   const { theme, toggleTheme } = useTheme()
@@ -20,10 +33,15 @@ function Navbar() {
             <Link to="/" className="hover:opacity-80 transition-opacity">
               Home
             </Link>
-            <Link to="/blog" className="hover:opacity-80 transition-opacity">
-              Blog
+
+            <NavDropdown label="Media" items={mediaItems} />
+
+            <NavDropdown label="Workspace" items={workspaceItems} />
+
+            <Link to="/login" className="hover:opacity-80 transition-opacity">
+              Login
             </Link>
-            
+
             {/* Theme toggle button */}
             <button
               onClick={toggleTheme}
