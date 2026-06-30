@@ -1,24 +1,22 @@
-import { useState } from 'react'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { ThemeProvider } from './contexts/ThemeContext'
+import Navbar from './components/Navbar'
+import Home from './pages/Home'
+import Blog from './pages/Blog'
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div className="bg-red-500 text-white p-8">
-      <h1 className="text-4xl font-bold mb-4">
-        Hello World! 🌍
-      </h1>
-      <p className="text-lg mb-6">
-        This should have a red background if Tailwind is working
-      </p>
-      
-      <button
-        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-        onClick={() => setCount(count + 1)}
-      >
-        Count: {count}
-      </button>
-    </div>
+    <ThemeProvider>
+      <Router>
+        <div className="min-h-screen bg-light-body dark:bg-dark-body text-light-text dark:text-dark-text">
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/blog" element={<Blog />} />
+          </Routes>
+        </div>
+      </Router>
+    </ThemeProvider>
   )
 }
 
