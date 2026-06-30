@@ -1,16 +1,71 @@
-# React + Vite
+# Riz - Personal Website
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A personal website built with React, Vite, and Tailwind CSS.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19** with Vite for fast development
+- **Tailwind CSS v3** for styling
+- **React Router** for navigation
+- **Dark/Light Mode** with system preference detection
+- **Inter Font** from Google Fonts
+- Responsive design
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19.2.7
+- React DOM 19.2.7
+- React Router DOM 7.1.3
+- Tailwind CSS 3.4.0
+- Vite 8.1.0
 
-## Expanding the Oxlint configuration
+## Color Scheme
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+### Dark Mode
+- Body: `#19161D`
+- Navbar: `#211D27`
+- Text: `#FAFAFA`
+
+### Light Mode
+- Body: `#F4F3F6`
+- Navbar: `#dfdee6ff`
+- Text: `#0F0F0F`
+
+## Getting Started
+
+### Install dependencies
+```bash
+npm install
+```
+
+### Run development server
+```bash
+npm run dev
+```
+
+### Build for production
+```bash
+npm run build
+```
+
+### Preview production build
+```bash
+npm preview
+```
+
+## Project Structure
+
+```
+src/
+├── components/     # Reusable components (Navbar, etc.)
+├── contexts/       # React contexts (ThemeContext)
+├── pages/          # Page components (Home, Blog)
+├── assets/         # Static assets
+├── App.jsx         # Main app component with routing
+└── main.jsx        # Entry point
+```
+
+## Routes
+
+- `/` - Home page with hero section
+- `/blog` - Blog page (placeholder)
