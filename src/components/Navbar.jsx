@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
+import { useAuth } from '../contexts/AuthContext'
 import NavDropdown from './NavDropdown'
+import UserDropdown from './UserDropdown'
 
 const mediaItems = [
   { label: 'Gallery', to: '/gallery' },
@@ -16,6 +18,7 @@ const workspaceItems = [
 
 function Navbar() {
   const { theme, toggleTheme } = useTheme()
+  const { user, loading } = useAuth()
 
   return (
     <nav className="bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text">
@@ -38,9 +41,15 @@ function Navbar() {
 
             <NavDropdown label="Workspace" items={workspaceItems} />
 
-            <Link to="/login" className="hover:opacity-80 transition-opacity">
-              Login
-            </Link>
+            {!loading && (
+              user ? (
+                <UserDropdown />
+              ) : (
+                <Link to="/login" className="hover:opacity-80 transition-opacity">
+                  Login
+                </Link>
+              )
+            )}
 
             {/* Theme toggle button */}
             <button

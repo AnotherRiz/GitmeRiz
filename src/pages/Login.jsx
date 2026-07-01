@@ -1,17 +1,38 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [form, setForm] = useState({ username: '', password: '' })
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const { login } = useAuth()
+  const navigate = useNavigate()
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+    if (error) setError('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // UI only for now
+
+    // Client-side validation
+    if (!form.username || !form.password) {
+      setError('Username and password are required.')
+      return
+    }
+
+    setSubmitting(true)
+    const result = await login(form)
+    setSubmitting(false)
+
+    if (result.ok) {
+      navigate('/dashboard')
+    } else {
+      setError(result.error)
+    }
   }
 
   const inputClass =
@@ -21,6 +42,12 @@ function Login() {
     <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4">
       <div className="w-full max-w-md rounded-2xl border border-light-card-border dark:border-dark-card-border bg-light-card dark:bg-dark-card shadow-lg p-8">
         <h1 className="text-2xl font-semibold mb-6 text-center">Login</h1>
+
+        {error && (
+          <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/40 text-red-500 text-sm px-4 py-2.5">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Username */}
@@ -77,9 +104,10 @@ function Login() {
           {/* Login button */}
           <button
             type="submit"
-            className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-medium py-2.5 transition-all duration-200"
+            disabled={submitting}
+            className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2.5 transition-all duration-200"
           >
-            Login
+            {submitting ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
