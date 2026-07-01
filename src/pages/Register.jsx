@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 function Register() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     name: '',
     username: '',
@@ -11,14 +14,42 @@ function Register() {
     password: '',
     confirmPassword: '',
   })
+  const { register } = useAuth()
+  const navigate = useNavigate()
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+    if (error) setError('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // UI only for now
+
+    // Client-side validation
+    if (!form.name || !form.username || !form.email || !form.password || !form.confirmPassword) {
+      setError('All fields are required.')
+      return
+    }
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    setSubmitting(true)
+    // Note: confirmPassword is validated client-side only, not sent to API
+    const result = await register({
+      name: form.name,
+      username: form.username,
+      email: form.email,
+      password: form.password,
+    })
+    setSubmitting(false)
+
+    if (result.ok) {
+      navigate('/login')
+    } else {
+      setError(result.error)
+    }
   }
 
   const inputClass =
@@ -40,6 +71,12 @@ function Register() {
     <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-8">
       <div className="w-full max-w-md rounded-2xl border border-light-card-border dark:border-dark-card-border bg-light-card dark:bg-dark-card shadow-lg p-8">
         <h1 className="text-2xl font-semibold mb-6 text-center">Register</h1>
+
+        {error && (
+          <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/40 text-red-500 text-sm px-4 py-2.5">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
@@ -145,9 +182,10 @@ function Register() {
           {/* Register button */}
           <button
             type="submit"
-            className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-medium py-2.5 transition-all duration-200"
+            disabled={submitting}
+            className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2.5 transition-all duration-200"
           >
-            Register
+            {submitting ? 'Registering...' : 'Register'}
           </button>
         </form>
 
