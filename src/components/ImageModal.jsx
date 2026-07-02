@@ -94,14 +94,13 @@ function ImageModal({ image, onClose }) {
       return
     }
 
-    let blobUrl = null
     let cancelled = false
 
-    async function loadImage() {
+    async function checkImageAccess() {
       try {
         const imageUrl = `${BASE_URL}/gallery/r/${shortId}`
         
-        // Fetch with credentials and bearer token fallback
+        // Fetch dengan HEAD request untuk check access tanpa download image
         const token = localStorage.getItem('token')
         const headers = {}
         if (token) {
@@ -109,6 +108,7 @@ function ImageModal({ image, onClose }) {
         }
 
         const response = await fetch(imageUrl, {
+          method: 'HEAD', // Only check headers, don't download body
           credentials: 'include',
           headers,
         })
@@ -116,10 +116,8 @@ function ImageModal({ image, onClose }) {
         if (cancelled) return
 
         if (response.ok) {
-          // Success: create blob URL
-          const blob = await response.blob()
-          blobUrl = URL.createObjectURL(blob)
-          setImageSrc(blobUrl)
+          // Success: set image src langsung ke backend URL
+          setImageSrc(imageUrl)
           setError(null)
         } else if (response.status === 401) {
           setError({ code: 401 })
@@ -130,7 +128,7 @@ function ImageModal({ image, onClose }) {
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('Error loading image:', err)
+          console.error('Error checking image access:', err)
           setError('Network error')
         }
       } finally {
@@ -140,14 +138,11 @@ function ImageModal({ image, onClose }) {
       }
     }
 
-    loadImage()
+    checkImageAccess()
 
-    // Cleanup: revoke blob URL to prevent memory leak
+    // No need to cleanup blob URL anymore
     return () => {
       cancelled = true
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl)
-      }
     }
   }, [shortId])
 
@@ -390,6 +385,10 @@ function ImageModal({ image, onClose }) {
               objectFit: 'contain',
               transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
               transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+            }}
+            onError={() => {
+              // Fallback jika image gagal load (network issue, dll)
+              setError('Failed to load image')
             }}
           />
         </div>

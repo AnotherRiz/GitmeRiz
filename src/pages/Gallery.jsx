@@ -112,18 +112,19 @@ function Gallery() {
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedImage(img)}
-                  className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px] cursor-pointer"
+                {/* <a> wrapper with raw URL for right-click, <img> shows thumbnail */}
+                <a
+                  href={`${BASE_URL}/gallery/r/${img.short_id}`}
+                  onClick={(e) => { e.preventDefault(); setSelectedImage(img); }}
+                  className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px]"
                 >
                   <img
                     src={`${BASE_URL}/gallery/t/${img.short_id}`}
                     alt={img.title}
                     loading="lazy"
-                    className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02]"
+                    className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02] pointer-events-none"
                   />
-                </button>
+                </a>
                 <div className="mt-3 px-1">
                   <h3 className="font-semibold text-sm text-light-text dark:text-dark-text" title={img.title}>
                     {displayTitle}

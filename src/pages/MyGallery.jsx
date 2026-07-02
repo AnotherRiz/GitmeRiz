@@ -268,7 +268,7 @@ function MyGallery() {
                     </button>
                   </div>
 
-                  {/* <a> wrapper with backend raw URL, <img> shows thumbnail */}
+                  {/* <a> wrapper with raw URL for right-click, <img> shows thumbnail */}
                   <a
                     href={getImageUrl(img, 'r')}
                     onClick={(e) => { e.preventDefault(); handleOpenImage(e, img); }}
@@ -279,7 +279,6 @@ function MyGallery() {
                       alt={img.title}
                       loading="lazy"
                       className="w-full h-full object-cover rounded-xl pointer-events-none"
-                      data-full={getImageUrl(img, 'r')}
                     />
                   </a>
                   <div className="mt-3 px-1">
@@ -389,7 +388,7 @@ function MyGallery() {
                     </button>
                   </div>
 
-                  {/* <a> wrapper with backend raw URL, <img> shows thumbnail */}
+                  {/* <a> wrapper with raw URL for right-click, <img> shows thumbnail */}
                   <a
                     href={getImageUrl(img, 'r')}
                     onClick={(e) => { e.preventDefault(); handleOpenImage(e, img); }}
@@ -400,7 +399,6 @@ function MyGallery() {
                       alt={img.title}
                       loading="lazy"
                       className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02] pointer-events-none"
-                      data-full={getImageUrl(img, 'r')}
                     />
                   </a>
                   <div className="mt-3 px-1">
