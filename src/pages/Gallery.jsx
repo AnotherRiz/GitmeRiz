@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { get } from '../lib/api'
+import ImageModal from '../components/ImageModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
@@ -10,13 +11,14 @@ function Gallery() {
   const [usersMap, setUsersMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedImage, setSelectedImage] = useState(null)
 
   useEffect(() => {
     if (authLoading) return
 
     async function fetchImages() {
       setLoading(true)
-      const res = await get('/api/gallery')
+      const res = await get('/gallery/public')
       if (res.ok) {
         setImages(res.data)
       } else {
@@ -27,7 +29,7 @@ function Gallery() {
 
     async function fetchUsers() {
       if (user && user.role === 'superuser') {
-        const res = await get('/api/users')
+        const res = await get('/users')
         if (res.ok) {
           const map = {}
           res.data.forEach((u) => {
@@ -89,13 +91,13 @@ function Gallery() {
             const displayTitle = img.title.length > 20 ? img.title.substring(0, 20) + '...' : img.title
             const uploaderName = user && img.user_id === user.id ? user.name : (usersMap[img.user_id] || `User #${img.user_id}`)
             return (
-              <div 
-                key={img.id} 
+              <div
+                key={img.id}
                 className="break-inside-avoid mb-4 p-3 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl shadow-sm hover:shadow-md hover:border-light-text/20 dark:hover:border-dark-text/20 transition-all duration-300 group relative"
               >
                 {/* Visibility Badge */}
-                <div 
-                  className="absolute top-5 left-5 z-10 p-1.5 rounded-lg bg-black/60 text-white hover:bg-black/85 transition-colors shadow-md"
+                <div
+                  className="absolute top-5 left-5 z-10 p-1.5 rounded-lg bg-black/60 text-white shadow-md"
                   title={img.visibility === 'public' ? 'Public Image' : 'Private Image'}
                 >
                   {img.visibility === 'public' ? (
@@ -110,14 +112,18 @@ function Gallery() {
                   )}
                 </div>
 
-                <div className="overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedImage(img)}
+                  className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px] cursor-pointer"
+                >
                   <img
-                    src={`${BASE_URL}/api/gallery/${img.id}/download`}
+                    src={`${BASE_URL}/gallery/t/${img.short_id}`}
                     alt={img.title}
                     loading="lazy"
                     className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02]"
                   />
-                </div>
+                </button>
                 <div className="mt-3 px-1">
                   <h3 className="font-semibold text-sm text-light-text dark:text-dark-text" title={img.title}>
                     {displayTitle}
@@ -130,6 +136,10 @@ function Gallery() {
             )
           })}
         </div>
+      )}
+
+      {selectedImage && (
+        <ImageModal image={selectedImage} onClose={() => setSelectedImage(null)} />
       )}
     </div>
   )

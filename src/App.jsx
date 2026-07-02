@@ -31,7 +31,7 @@ function AppContent() {
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/gallery" element={<Gallery />} />
-        <Route path="/my-gallery" element={<MyGallery />} />
+        <Route path="/:username/gallery" element={<MyGallery />} />
       </Routes>
     </div>
   )

@@ -164,7 +164,7 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
         formData.append('visibility', visibility)
 
         const xhr = new XMLHttpRequest()
-        xhr.open('POST', `${BASE_URL}/api/gallery`)
+        xhr.open('POST', `${BASE_URL}/gallery`)
 
         const token = localStorage.getItem('token')
         if (token) {

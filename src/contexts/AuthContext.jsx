@@ -16,7 +16,7 @@ export function AuthProvider({ children }) {
         return
       }
 
-      const result = await get('/api/users/me')
+      const result = await get('/users/me')
       if (result.ok) {
         setUser(result.data)
       } else {
@@ -31,13 +31,13 @@ export function AuthProvider({ children }) {
 
   // Register a new user
   const register = async ({ name, username, email, password }) => {
-    const result = await post('/api/register', { name, username, email, password })
+    const result = await post('/register', { name, username, email, password })
     return result
   }
 
   // Log in with username + password
   const login = async ({ username, password }) => {
-    const result = await post('/api/login', { username, password })
+    const result = await post('/login', { username, password })
     if (result.ok) {
       localStorage.setItem('token', result.data.token)
       setUser(result.data.user)
