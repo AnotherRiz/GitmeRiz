@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { get, api } from '../lib/api'
+import { getShortId } from '../lib/shortId'
 import UploadModal from '../components/UploadModal'
 import EditNameModal from '../components/EditNameModal'
+import ImageModal from '../components/ImageModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
 function MyGallery() {
+  const { username } = useParams()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user, loading: authLoading } = useAuth()
   const [images, setImages] = useState([])
   const [pinnedIds, setPinnedIds] = useState([])
@@ -16,6 +21,30 @@ function MyGallery() {
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editImage, setEditImage] = useState(null)
+  const [selectedImage, setSelectedImage] = useState(null)
+
+  // Helper: Backend API URL for image bytes. type = 't' (thumbnail) or 'r' (raw).
+  // Always returns clean URL without token.
+  // Backend will check authentication via cookie/header.
+  // If user doesn't have access → 401 Unauthorized.
+  const getImageUrl = (img, type = 't') => {
+    const shortId = getShortId(img)
+    return `${BASE_URL}/gallery/${type}/${shortId}`
+  }
+
+  // Check if we should show modal based on query param
+  const viewImageId = searchParams.get('view')
+
+  useEffect(() => {
+    if (viewImageId && images.length > 0) {
+      const imageToView = images.find(img => getShortId(img) === viewImageId)
+      if (imageToView) {
+        setSelectedImage(imageToView)
+      }
+    } else {
+      setSelectedImage(null)
+    }
+  }, [viewImageId, images])
 
   // Load images and pinned ids
   useEffect(() => {
@@ -23,7 +52,7 @@ function MyGallery() {
 
     async function fetchMyImages() {
       setLoading(true)
-      const res = await get('/api/gallery/my')
+      const res = await get('/gallery/me')
       if (res.ok) {
         setImages(res.data)
       } else {
@@ -55,6 +84,37 @@ function MyGallery() {
 
   if (!user) {
     return <Navigate to="/login" replace />
+  }
+
+  // Only the owner may view their own gallery
+  if (user.username !== username) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <h1 className="text-3xl font-bold mb-4">Forbidden</h1>
+        <p className="text-lg opacity-80 mb-8">You can only view your own gallery.</p>
+        <button
+          onClick={() => navigate(`/${user.username}/gallery`)}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+        >
+          Go to My Gallery
+        </button>
+      </div>
+    )
+  }
+
+  // Open an image: update query param to show modal.
+  // The URL becomes /:username/gallery?view={short_id}
+  const handleOpenImage = (e, img) => {
+    e.preventDefault()
+    const shortId = getShortId(img)
+    if (shortId) {
+      setSearchParams({ view: shortId })
+    }
+  }
+
+  const handleCloseModal = () => {
+    setSearchParams({})
+    setSelectedImage(null)
   }
 
   // Filter pinned and unpinned images for the current user only
@@ -89,7 +149,7 @@ function MyGallery() {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this image?')) return
 
-    const res = await api(`/api/gallery/${id}`, { method: 'DELETE' })
+    const res = await api(`/gallery/${id}`, { method: 'DELETE' })
     if (res.ok) {
       // Remove from images list
       setImages((prev) => prev.filter((img) => img.id !== id))
@@ -111,7 +171,7 @@ function MyGallery() {
 
   const handleToggleVisibility = async (img) => {
     const nextVisibility = img.visibility === 'public' ? 'private' : 'public'
-    const res = await api(`/api/gallery/${img.id}/visibility`, {
+    const res = await api(`/gallery/${img.id}/visibility`, {
       method: 'PATCH',
       body: JSON.stringify({ visibility: nextVisibility }),
     })
@@ -208,14 +268,20 @@ function MyGallery() {
                     </button>
                   </div>
 
-                  <div className="overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 h-[16.5rem] flex items-center justify-center">
+                  {/* <a> wrapper with backend raw URL, <img> shows thumbnail */}
+                  <a
+                    href={getImageUrl(img, 'r')}
+                    onClick={(e) => { e.preventDefault(); handleOpenImage(e, img); }}
+                    className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 h-[16.5rem] flex items-center justify-center"
+                  >
                     <img
-                      src={`${BASE_URL}/api/gallery/${img.id}/download`}
+                      src={getImageUrl(img, 't')}
                       alt={img.title}
                       loading="lazy"
-                      className="w-full h-full object-cover rounded-xl"
+                      className="w-full h-full object-cover rounded-xl pointer-events-none"
+                      data-full={getImageUrl(img, 'r')}
                     />
-                  </div>
+                  </a>
                   <div className="mt-3 px-1">
                     <h3 className="font-semibold text-sm text-light-text dark:text-dark-text" title={img.title}>
                       {displayTitle}
@@ -323,14 +389,20 @@ function MyGallery() {
                     </button>
                   </div>
 
-                  <div className="overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px]">
+                  {/* <a> wrapper with backend raw URL, <img> shows thumbnail */}
+                  <a
+                    href={getImageUrl(img, 'r')}
+                    onClick={(e) => { e.preventDefault(); handleOpenImage(e, img); }}
+                    className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px]"
+                  >
                     <img
-                      src={`${BASE_URL}/api/gallery/${img.id}/download`}
+                      src={getImageUrl(img, 't')}
                       alt={img.title}
                       loading="lazy"
-                      className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02]"
+                      className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02] pointer-events-none"
+                      data-full={getImageUrl(img, 'r')}
                     />
-                  </div>
+                  </a>
                   <div className="mt-3 px-1">
                     <h3 className="font-semibold text-sm text-light-text dark:text-dark-text" title={img.title}>
                       {displayTitle}
@@ -363,6 +435,14 @@ function MyGallery() {
         image={editImage}
         onSuccess={handleEditSuccess}
       />
+
+      {/* Image View Modal */}
+      {selectedImage && (
+        <ImageModal 
+          image={selectedImage} 
+          onClose={handleCloseModal}
+        />
+      )}
     </div>
   )
 }
