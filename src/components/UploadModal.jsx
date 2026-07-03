@@ -283,10 +283,11 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
         const blob = item.getAsFile()
         if (!blob) continue
 
-        // Build timestamped filename
+        // Build timestamped filename with milliseconds for uniqueness
         const now = new Date()
         const pad = (n) => String(n).padStart(2, '0')
-        const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+        const ms = String(now.getMilliseconds()).padStart(3, '0')
+        const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${ms}`
         const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
         const fileName = `image_${stamp}.${ext}`
         
@@ -707,10 +708,10 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
               </svg>
               
               <p className="text-sm font-medium text-center">
-                Drag & drop files here, or <span className="text-blue-500 hover:underline">browse</span>
+                Drop image here, paste, or <span className="text-blue-500 hover:underline">browse</span>
               </p>
               <p className="text-xs text-neutral-500 mt-1">
-                Supports up to 50 images. Max 100MB per file. Paste images with Ctrl+V.
+                Supports up to 50 images.
               </p>
             </div>
           )}
