@@ -44,8 +44,7 @@ function MyGallery() {
   // Map of { imageId: isVertical }
   const [imageOrientation, setImageOrientation] = useState({})
 
-  // Session-local order for pinned images (drag-and-drop).
-  // TODO: Backend has no pinned-order persistence yet — this order resets on reload.
+  // Pinned order from backend (pin_order field). User can drag-and-drop to reorder.
   const [pinnedOrder, setPinnedOrder] = useState([])
 
   // Drag sensors. A small activation distance lets a plain click open the image
@@ -107,23 +106,21 @@ function MyGallery() {
     fetchMyImages()
   }, [authLoading, user])
 
-  // Keep the session-local pinned order in sync with the pinned images.
-  // New pins are appended to the end; unpinned/deleted ids are dropped.
+  // Keep the pinned order in sync with the pinned images.
+  // Backend persists the order via pin_order field. We seed our local state from it.
   useEffect(() => {
     if (!user) return
-    const pinnedIds = images
+    const pinned = images
       .filter((img) => img.pinned && img.user_id === user.id)
+      .sort((a, b) => (a.pin_order || 0) - (b.pin_order || 0))
       .map((img) => img.id)
 
     setPinnedOrder((prev) => {
-      const kept = prev.filter((id) => pinnedIds.includes(id))
-      const added = pinnedIds.filter((id) => !kept.includes(id))
-      const next = [...kept, ...added]
-      // Avoid triggering a re-render if nothing changed
-      if (next.length === prev.length && next.every((id, i) => id === prev[i])) {
+      // If backend order matches current local order, no update needed
+      if (pinned.length === prev.length && pinned.every((id, i) => id === prev[i])) {
         return prev
       }
-      return next
+      return pinned
     })
   }, [images, user])
 
@@ -211,16 +208,28 @@ function MyGallery() {
       return ia - ib
     })
 
-  // Reorder pinned images on drag end (session-local only).
-  const handleDragEnd = (event) => {
+  // Reorder pinned images on drag end (persisted to backend).
+  const handleDragEnd = async (event) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    setPinnedOrder((prev) => {
-      const oldIndex = prev.indexOf(active.id)
-      const newIndex = prev.indexOf(over.id)
-      if (oldIndex === -1 || newIndex === -1) return prev
-      return arrayMove(prev, oldIndex, newIndex)
+
+    const oldIndex = pinnedOrder.indexOf(active.id)
+    const newIndex = pinnedOrder.indexOf(over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const newOrder = arrayMove(pinnedOrder, oldIndex, newIndex)
+    setPinnedOrder(newOrder)
+
+    // Persist to backend
+    const res = await api('/gallery/reorder-pins', {
+      method: 'PATCH',
+      body: JSON.stringify({ ordered_ids: newOrder }),
     })
+    if (!res.ok) {
+      // Revert on error
+      setPinnedOrder(pinnedOrder)
+      alert(res.error || 'Failed to save pinned order.')
+    }
   }
 
   const handleUploadSuccess = (newItems) => {
