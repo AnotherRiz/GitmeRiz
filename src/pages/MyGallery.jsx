@@ -15,6 +15,7 @@ import {
   arrayMove,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
+import { restrictToParentElement } from '@dnd-kit/modifiers'
 import { useAuth } from '../contexts/AuthContext'
 import { get, api, post } from '../lib/api'
 import { getShortId } from '../lib/shortId'
@@ -374,6 +375,7 @@ function MyGallery() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
+            modifiers={[restrictToParentElement]}
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={pinnedImages.map((img) => img.id)} strategy={rectSortingStrategy}>

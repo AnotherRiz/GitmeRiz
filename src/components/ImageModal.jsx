@@ -30,6 +30,9 @@ function ImageModal({ image, onClose }) {
   const [isClosing, setIsClosing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   
+  // State untuk download
+  const [downloading, setDownloading] = useState(false)
+  
   // Ref untuk anchor point (tidak trigger re-render)
   const anchorPoint = useRef({ x: 0, y: 0 })
 
@@ -251,6 +254,57 @@ function ImageModal({ image, onClose }) {
     }
   }
 
+  // Download raw image with authentication
+  const handleDownload = async () => {
+    if (downloading) return
+    
+    setDownloading(true)
+    try {
+      const rawUrl = `${BASE_URL}/gallery/r/${shortId}`
+      const token = localStorage.getItem('token')
+      const headers = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch(rawUrl, {
+        method: 'GET',
+        credentials: 'include',
+        headers,
+      })
+
+      if (!response.ok) {
+        console.error('Download failed:', response.status)
+        alert('Failed to download image. Please try again.')
+        return
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      
+      // Derive extension from MIME type or default to jpg
+      const mimeType = blob.type || 'image/jpeg'
+      const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg'
+      const fileName = `${image.title || 'image'}.${ext}`
+      
+      // Create temporary link and trigger download
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      
+      // Cleanup object URL
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Download error:', error)
+      alert('Failed to download image. Please try again.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -326,6 +380,24 @@ function ImageModal({ image, onClose }) {
       <div className={`zoom-controls absolute bottom-4 right-4 z-10 flex flex-col gap-2 transition-transform duration-300 ease-out ${
         isClosing ? 'translate-y-full' : isOpen ? 'translate-y-0' : 'translate-y-full'
       }`}>
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="p-3 bg-white/90 dark:bg-gray-800/90 text-gray-900 dark:text-white rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Download image"
+        >
+          {downloading ? (
+            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+          )}
+        </button>
         <button
           onClick={handleZoomIn}
           disabled={scale >= 4}

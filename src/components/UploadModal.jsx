@@ -255,6 +255,57 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
+  // Handle paste event (Ctrl+V) for image upload
+  useEffect(() => {
+    if (!isOpen || isMinimized) return
+
+    const handlePaste = (e) => {
+      // Don't hijack paste when user is typing in text inputs
+      const el = document.activeElement
+      const isTyping =
+        el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+      if (isTyping) return
+
+      // Check clipboard for image items
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      const pastedFiles = []
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        
+        // Skip non-file items
+        if (item.kind !== 'file') continue
+        
+        // Skip non-image items
+        if (!item.type.startsWith('image/')) continue
+        
+        const blob = item.getAsFile()
+        if (!blob) continue
+
+        // Build timestamped filename with milliseconds for uniqueness
+        const now = new Date()
+        const pad = (n) => String(n).padStart(2, '0')
+        const ms = String(now.getMilliseconds()).padStart(3, '0')
+        const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}${ms}`
+        const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+        const fileName = `image_${stamp}.${ext}`
+        
+        // Convert blob to File object
+        const file = new File([blob], fileName, { type: blob.type })
+        pastedFiles.push(file)
+      }
+
+      if (pastedFiles.length > 0) {
+        e.preventDefault()
+        handleAddFiles(pastedFiles)
+      }
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [isOpen, isMinimized])
+
   // Helper to close/minimize modal with animation
   const handleModalClose = () => {
     if (uploadInProgressRef.current && onMinimize) {
@@ -387,15 +438,21 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
         })
     }
 
-    const nextFiles = [...selectedFiles, ...processed]
-    if (nextFiles.length === 1) {
-      if (singleTitle) {
-        nextFiles[0].title = singleTitle
-      } else {
-        setSingleTitle(nextFiles[0].title)
+    // Use functional update to avoid stale closure when called rapidly (e.g. paste twice)
+    setSelectedFiles(prev => {
+      const nextFiles = [...prev, ...processed]
+      
+      // Handle single title sync
+      if (nextFiles.length === 1) {
+        if (singleTitle) {
+          nextFiles[0].title = singleTitle
+        } else {
+          setSingleTitle(nextFiles[0].title)
+        }
       }
-    }
-    setSelectedFiles(nextFiles)
+      
+      return nextFiles
+    })
   }
 
   const handleFileChange = (e) => {
@@ -657,10 +714,10 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
               </svg>
               
               <p className="text-sm font-medium text-center">
-                Drag & drop files here, or <span className="text-blue-500 hover:underline">browse</span>
+                Drop image here, paste, or <span className="text-blue-500 hover:underline">browse</span>
               </p>
               <p className="text-xs text-neutral-500 mt-1">
-                Supports up to 50 images. Max 100MB per file.
+                Supports up to 50 images.
               </p>
             </div>
           )}
