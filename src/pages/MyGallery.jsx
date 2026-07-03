@@ -1,11 +1,28 @@
 import { useState, useEffect } from 'react'
 import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  rectSortingStrategy,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable'
 import { useAuth } from '../contexts/AuthContext'
-import { get, api } from '../lib/api'
+import { get, api, post } from '../lib/api'
 import { getShortId } from '../lib/shortId'
+import { fetchStatuses } from '../lib/pollStatus'
 import UploadModal from '../components/UploadModal'
 import EditNameModal from '../components/EditNameModal'
 import ImageModal from '../components/ImageModal'
+import SortablePinnedCard from '../components/SortablePinnedCard'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
@@ -22,6 +39,21 @@ function MyGallery() {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editImage, setEditImage] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
+  
+  // Track orientation (portrait/landscape) for Bento grid spanning
+  // Map of { imageId: isVertical }
+  const [imageOrientation, setImageOrientation] = useState({})
+
+  // Pinned order from backend (pin_order field). User can drag-and-drop to reorder.
+  const [pinnedOrder, setPinnedOrder] = useState([])
+
+  // Drag sensors. A small activation distance lets a plain click open the image
+  // while an actual drag reorders the card.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   // Helper: Backend API URL for image bytes. type = 't' (thumbnail) or 'r' (raw).
   // Always returns clean URL without token.
@@ -74,6 +106,51 @@ function MyGallery() {
     fetchMyImages()
   }, [authLoading, user])
 
+  // Keep the pinned order in sync with the pinned images.
+  // Backend persists the order via pin_order field. We seed our local state from it.
+  useEffect(() => {
+    if (!user) return
+    const pinned = images
+      .filter((img) => img.pinned && img.user_id === user.id)
+      .sort((a, b) => (a.pin_order || 0) - (b.pin_order || 0))
+      .map((img) => img.id)
+
+    setPinnedOrder((prev) => {
+      // If backend order matches current local order, no update needed
+      if (pinned.length === prev.length && pinned.every((id, i) => id === prev[i])) {
+        return prev
+      }
+      return pinned
+    })
+  }, [images, user])
+
+  // Poll processing items status
+  useEffect(() => {
+    const processingIds = images
+      .filter((img) => img.status === 'processing')
+      .map((img) => img.id)
+
+    if (processingIds.length === 0) return
+
+    const intervalId = setInterval(async () => {
+      // Pause polling when tab is hidden (save bandwidth)
+      if (document.hidden) return
+
+      const statusMap = await fetchStatuses(processingIds)
+      if (Object.keys(statusMap).length === 0) return // retry next tick
+
+      setImages((prev) =>
+        prev.map((img) =>
+          statusMap[img.id] && statusMap[img.id] !== img.status
+            ? { ...img, status: statusMap[img.id] }
+            : img
+        )
+      )
+    }, 2000)
+
+    return () => clearInterval(intervalId)
+  }, [images])
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
@@ -119,8 +196,41 @@ function MyGallery() {
 
   // Filter pinned and unpinned images for the current user only
   const myImages = images.filter((img) => img.user_id === user.id)
-  const pinnedImages = myImages.filter((img) => img.pinned)
   const unpinnedImages = myImages.filter((img) => !img.pinned)
+  // Sort pinned images by the session-local drag order
+  const pinnedImages = myImages
+    .filter((img) => img.pinned)
+    .sort((a, b) => {
+      const ia = pinnedOrder.indexOf(a.id)
+      const ib = pinnedOrder.indexOf(b.id)
+      if (ia === -1) return 1
+      if (ib === -1) return -1
+      return ia - ib
+    })
+
+  // Reorder pinned images on drag end (persisted to backend).
+  const handleDragEnd = async (event) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = pinnedOrder.indexOf(active.id)
+    const newIndex = pinnedOrder.indexOf(over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const newOrder = arrayMove(pinnedOrder, oldIndex, newIndex)
+    setPinnedOrder(newOrder)
+
+    // Persist to backend
+    const res = await api('/gallery/reorder-pins', {
+      method: 'PATCH',
+      body: JSON.stringify({ ordered_ids: newOrder }),
+    })
+    if (!res.ok) {
+      // Revert on error
+      setPinnedOrder(pinnedOrder)
+      alert(res.error || 'Failed to save pinned order.')
+    }
+  }
 
   const handleUploadSuccess = (newItems) => {
     // Backend returns either a single GalleryItem or an array (UploadResponse)
@@ -141,11 +251,26 @@ function MyGallery() {
     setIsUploadMinimized(false)
   }
 
+  // Detect image orientation for Bento grid spanning
+  const handleImageLoad = (e, imgId) => {
+    const isVertical = e.target.naturalHeight > e.target.naturalWidth
+    setImageOrientation((prev) => ({ ...prev, [imgId]: isVertical }))
+  }
+
   const handleEditSuccess = (updatedImage) => {
     setImages((prev) => prev.map((img) => (img.id === updatedImage.id ? updatedImage : img)))
   }
 
   const handleTogglePin = async (img) => {
+    // Check if trying to pin (not unpin) and limit is reached
+    if (!img.pinned) {
+      const pinnedCount = images.filter((i) => i.pinned).length
+      if (pinnedCount >= 8) {
+        alert('You can pin up to 8 images. Unpin one first.')
+        return
+      }
+    }
+
     const res = await api(`/gallery/${img.id}/pinned`, {
       method: 'PATCH',
       body: JSON.stringify({ pinned: !img.pinned }),
@@ -188,6 +313,25 @@ function MyGallery() {
     }
   }
 
+  const handleReprocess = async (img) => {
+    // Optimistically set to processing so the polling effect starts
+    setImages((prev) =>
+      prev.map((it) => (it.id === img.id ? { ...it, status: 'processing' } : it))
+    )
+
+    const res = await post(`/gallery/${img.id}/reprocess`, {})
+    if (res.ok && res.data) {
+      // Server returns the updated item (may already be active)
+      setImages((prev) => prev.map((it) => (it.id === img.id ? res.data : it)))
+    } else {
+      // Revert to failed on error
+      setImages((prev) =>
+        prev.map((it) => (it.id === img.id ? { ...it, status: 'failed_processing' } : it))
+      )
+      alert(res.error || 'Failed to retry processing.')
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-24">
       {/* Page Header */}
@@ -216,7 +360,7 @@ function MyGallery() {
         </div>
       )}
 
-      {/* Pinned Area (Horizontal Scroll - w-[27rem] and h-[16.5rem] is 50% larger than w-72 h-44) */}
+      {/* Pinned Area (Bento grid: vertical images span two rows, drag to reorder) */}
       <div className="mb-10">
         <h2 className="text-lg font-bold mb-4">
           Pinned
@@ -227,81 +371,30 @@ function MyGallery() {
             No pinned images. Click the Love icon on any image card below to feature it here.
           </div>
         ) : (
-          <div className="flex overflow-x-auto gap-5 pb-4 snap-x no-scrollbar">
-            {pinnedImages.map((img) => {
-              const displayTitle = img.title.length > 20 ? img.title.substring(0, 20) + '...' : img.title
-              return (
-                <div 
-                  key={img.id} 
-                  className="flex-shrink-0 w-[27rem] snap-start p-3 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl relative shadow-sm group"
-                >
-                  {/* Visibility Badge */}
-                  <button 
-                    onClick={() => handleToggleVisibility(img)}
-                    className="absolute top-5 left-5 z-20 p-1.5 rounded-lg bg-black/60 text-white shadow-md hover:bg-black/85 transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 opacity-0 group-hover:opacity-100"
-                    title={img.visibility === 'public' ? 'Public Image (Click to make Private)' : 'Private Image (Click to make Public)'}
-                  >
-                    {img.visibility === 'public' ? (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                      </svg>
-                    )}
-                  </button>
-
-                  {/* Actions overlay shown on hover */}
-                  <div className="absolute top-5 right-5 z-10 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    {/* Rename pencil icon */}
-                    <button
-                      onClick={() => handleOpenEdit(img)}
-                      className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors shadow-md"
-                      title="Edit name"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                    </button>
-                    {/* Unpin button (Love Icon) */}
-                    <button
-                      onClick={() => handleTogglePin(img)}
-                      className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-red-500 transition-colors shadow-md"
-                      title="Unpin image"
-                    >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* <a> wrapper with raw URL for right-click, <img> shows thumbnail */}
-                  <a
-                    href={getImageUrl(img, 'r')}
-                    onClick={(e) => { e.preventDefault(); handleOpenImage(e, img); }}
-                    className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 h-[16.5rem] flex items-center justify-center"
-                  >
-                    <img
-                      src={getImageUrl(img, 't')}
-                      alt={img.title}
-                      loading="lazy"
-                      className="w-full h-full object-cover rounded-xl pointer-events-none"
-                    />
-                  </a>
-                  <div className="mt-3 px-1">
-                    <h3 className="font-semibold text-sm text-light-text dark:text-dark-text" title={img.title}>
-                      {displayTitle}
-                    </h3>
-                    <p className="text-xs text-neutral-500 mt-1">
-                      Uploaded by: {user.name}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={pinnedImages.map((img) => img.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-flow-row-dense grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 auto-rows-[11rem] gap-4">
+                {pinnedImages.map((img) => (
+                  <SortablePinnedCard
+                    key={img.id}
+                    img={img}
+                    isVertical={!!imageOrientation[img.id]}
+                    getImageUrl={getImageUrl}
+                    onToggleVisibility={handleToggleVisibility}
+                    onOpenEdit={handleOpenEdit}
+                    onTogglePin={handleTogglePin}
+                    onOpenImage={handleOpenImage}
+                    onReprocess={handleReprocess}
+                    onImageLoad={handleImageLoad}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
@@ -397,26 +490,51 @@ function MyGallery() {
                     </button>
                   </div>
 
-                  {/* <a> wrapper with raw URL for right-click, <img> shows thumbnail */}
-                  <a
-                    href={getImageUrl(img, 'r')}
-                    onClick={(e) => { e.preventDefault(); handleOpenImage(e, img); }}
-                    className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px]"
-                  >
-                    <img
-                      src={getImageUrl(img, 't')}
-                      alt={img.title}
-                      loading="lazy"
-                      className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02] pointer-events-none"
-                    />
-                  </a>
+                  {/* Image display - different UI based on status */}
+                  <div className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px]">
+                    {img.status === 'processing' ? (
+                      // Processing state: show spinner
+                      <div className="w-full h-full flex flex-col items-center justify-center text-neutral-400 py-8">
+                        <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        <span className="text-xs mt-2">Processing...</span>
+                      </div>
+                    ) : img.status === 'failed_processing' ? (
+                      // Failed state: show error + retry
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/10 text-red-500 gap-2 p-3 text-center py-8">
+                        <span className="text-xs font-semibold">Processing failed</span>
+                        <button
+                          onClick={() => handleReprocess(img)}
+                          className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : (
+                      // Active state: show thumbnail with clickable link
+                      <a
+                        href={getImageUrl(img, 'r')}
+                        onClick={(e) => { 
+                          e.preventDefault()
+                          handleOpenImage(e, img)
+                        }}
+                        className="w-full h-full flex items-center justify-center"
+                      >
+                        <img
+                          src={getImageUrl(img, 't')}
+                          alt={img.title}
+                          loading="lazy"
+                          className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02] pointer-events-none"
+                        />
+                      </a>
+                    )}
+                  </div>
                   <div className="mt-3 px-1">
                     <h3 className="font-semibold text-sm text-light-text dark:text-dark-text" title={img.title}>
                       {displayTitle}
                     </h3>
-                    <p className="text-xs text-neutral-500 mt-1">
-                      Uploaded by: {user.name}
-                    </p>
                   </div>
                 </div>
               )

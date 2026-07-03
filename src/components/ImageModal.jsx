@@ -239,6 +239,18 @@ function ImageModal({ image, onClose }) {
     setPosition({ x: 0, y: 0 })
   }
 
+  // Double-click to zoom in/out
+  const handleDoubleClick = () => {
+    if (scale > 1) {
+      // Already zoomed: reset to initial state
+      setScale(1)
+      setPosition({ x: 0, y: 0 })
+    } else {
+      // Not zoomed: zoom in to 2x
+      setScale(2)
+    }
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -372,6 +384,7 @@ function ImageModal({ image, onClose }) {
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseLeave}
           onWheel={handleWheel}
+          onDoubleClick={handleDoubleClick}
         >
           <img
             src={imageSrc}

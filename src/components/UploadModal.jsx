@@ -207,6 +207,10 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
   const [error, setError] = useState('')
   const fileInputRef = useRef(null)
   const uploadInProgressRef = useRef(false) // Track if upload is actually running
+  
+  // Animation states (mirror ImageModal pattern)
+  const [modalIsOpen, setModalIsOpen] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
 
   // Reset states when modal fully closes (not just minimized)
   useEffect(() => {
@@ -223,8 +227,22 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
       setProgress(0)
       setUploading(false)
       setError('')
+      setModalIsOpen(false)
+      setIsClosing(false)
     }
   }, [isOpen])
+
+  // Trigger open animation (mirror ImageModal pattern)
+  useEffect(() => {
+    if (isOpen && !isMinimized) {
+      // Small delay to trigger CSS transition
+      const timer = setTimeout(() => {
+        setModalIsOpen(true)
+        setIsClosing(false)
+      }, 10)
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen, isMinimized])
 
   // Handle ESC key press - allow closing even during upload
   useEffect(() => {
@@ -237,14 +255,21 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
-  // Helper to close/minimize modal
+  // Helper to close/minimize modal with animation
   const handleModalClose = () => {
     if (uploadInProgressRef.current && onMinimize) {
-      // Upload in progress: minimize instead of closing
-      onMinimize()
+      // Upload in progress: minimize instead of closing (with fade out)
+      setIsClosing(true)
+      setTimeout(() => {
+        onMinimize()
+        setIsClosing(false)
+      }, 300)
     } else {
-      // No upload or no minimize handler: normal close
-      onClose()
+      // No upload or no minimize handler: normal close with fade out
+      setIsClosing(true)
+      setTimeout(() => {
+        onClose()
+      }, 300)
     }
   }
 
@@ -542,14 +567,18 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      className={`fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300 ${
+        isClosing ? 'opacity-0' : modalIsOpen ? 'opacity-100' : 'opacity-0'
+      }`}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           handleModalClose()
         }
       }}
     >
-      <div className="bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-lg p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col">
+      <div className={`bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-lg p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col transition-all duration-300 ease-out ${
+        isClosing ? 'opacity-0 scale-95' : modalIsOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+      }`}>
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-light-navbar/10 dark:border-dark-navbar/10">
           <div className="flex items-baseline gap-2">
