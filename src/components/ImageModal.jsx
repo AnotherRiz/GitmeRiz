@@ -98,7 +98,8 @@ function ImageModal({ image, onClose }) {
 
     async function checkImageAccess() {
       try {
-        const imageUrl = `${BASE_URL}/gallery/r/${shortId}`
+        const previewUrl = `${BASE_URL}/gallery/p/${shortId}`
+        const rawUrl = `${BASE_URL}/gallery/r/${shortId}` // Keep raw URL for potential future use
         
         // Fetch dengan HEAD request untuk check access tanpa download image
         const token = localStorage.getItem('token')
@@ -107,7 +108,7 @@ function ImageModal({ image, onClose }) {
           headers['Authorization'] = `Bearer ${token}`
         }
 
-        const response = await fetch(imageUrl, {
+        const response = await fetch(previewUrl, {
           method: 'HEAD', // Only check headers, don't download body
           credentials: 'include',
           headers,
@@ -116,8 +117,8 @@ function ImageModal({ image, onClose }) {
         if (cancelled) return
 
         if (response.ok) {
-          // Success: set image src langsung ke backend URL
-          setImageSrc(imageUrl)
+          // Success: set image src to preview URL for display
+          setImageSrc(previewUrl)
           setError(null)
         } else if (response.status === 401) {
           setError({ code: 401 })

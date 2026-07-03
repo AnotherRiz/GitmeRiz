@@ -15,10 +15,10 @@ function MyGallery() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user, loading: authLoading } = useAuth()
   const [images, setImages] = useState([])
-  const [pinnedIds, setPinnedIds] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isUploadOpen, setIsUploadOpen] = useState(false)
+  const [isUploadMinimized, setIsUploadMinimized] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editImage, setEditImage] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
@@ -46,7 +46,17 @@ function MyGallery() {
     }
   }, [viewImageId, images])
 
-  // Load images and pinned ids
+  // Listen for reopen upload modal event
+  useEffect(() => {
+    const handleReopenUpload = () => {
+      setIsUploadOpen(true)
+      setIsUploadMinimized(false)
+    }
+    window.addEventListener('reopenUploadModal', handleReopenUpload)
+    return () => window.removeEventListener('reopenUploadModal', handleReopenUpload)
+  }, [])
+
+  // Load images
   useEffect(() => {
     if (authLoading || !user) return
 
@@ -59,16 +69,6 @@ function MyGallery() {
         setError(res.error || 'Failed to fetch your gallery images.')
       }
       setLoading(false)
-    }
-
-    // Load pinned IDs from localStorage
-    const savedPinned = localStorage.getItem(`pinned_gallery_${user.id}`)
-    if (savedPinned) {
-      try {
-        setPinnedIds(JSON.parse(savedPinned))
-      } catch (err) {
-        console.error('Failed to parse pinned images', err)
-      }
     }
 
     fetchMyImages()
@@ -119,8 +119,8 @@ function MyGallery() {
 
   // Filter pinned and unpinned images for the current user only
   const myImages = images.filter((img) => img.user_id === user.id)
-  const pinnedImages = myImages.filter((img) => pinnedIds.includes(img.id))
-  const unpinnedImages = myImages.filter((img) => !pinnedIds.includes(img.id))
+  const pinnedImages = myImages.filter((img) => img.pinned)
+  const unpinnedImages = myImages.filter((img) => !img.pinned)
 
   const handleUploadSuccess = (newItems) => {
     // Backend returns either a single GalleryItem or an array (UploadResponse)
@@ -131,19 +131,31 @@ function MyGallery() {
     }
   }
 
+  const handleMinimizeUpload = () => {
+    setIsUploadMinimized(true)
+    // Upload continues in background - modal is hidden but still mounted
+  }
+
+  const handleCloseUpload = () => {
+    setIsUploadOpen(false)
+    setIsUploadMinimized(false)
+  }
+
   const handleEditSuccess = (updatedImage) => {
     setImages((prev) => prev.map((img) => (img.id === updatedImage.id ? updatedImage : img)))
   }
 
-  const handleTogglePin = (id) => {
-    let updatedPinned
-    if (pinnedIds.includes(id)) {
-      updatedPinned = pinnedIds.filter((pId) => pId !== id)
+  const handleTogglePin = async (img) => {
+    const res = await api(`/gallery/${img.id}/pinned`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pinned: !img.pinned }),
+    })
+    if (res.ok) {
+      // Update the item in state with the server response
+      setImages((prev) => prev.map((it) => (it.id === img.id ? res.data : it)))
     } else {
-      updatedPinned = [...pinnedIds, id]
+      alert(res.error || 'Failed to update pinned status.')
     }
-    setPinnedIds(updatedPinned)
-    localStorage.setItem(`pinned_gallery_${user.id}`, JSON.stringify(updatedPinned))
   }
 
   const handleDelete = async (id) => {
@@ -153,12 +165,6 @@ function MyGallery() {
     if (res.ok) {
       // Remove from images list
       setImages((prev) => prev.filter((img) => img.id !== id))
-      // Remove from pinned if it was pinned
-      if (pinnedIds.includes(id)) {
-        const updatedPinned = pinnedIds.filter((pId) => pId !== id)
-        setPinnedIds(updatedPinned)
-        localStorage.setItem(`pinned_gallery_${user.id}`, JSON.stringify(updatedPinned))
-      }
     } else {
       alert(res.error || 'Failed to delete image.')
     }
@@ -191,7 +197,10 @@ function MyGallery() {
           <p className="text-sm opacity-60 mt-1">Manage and organize your private uploads.</p>
         </div>
         <button
-          onClick={() => setIsUploadOpen(true)}
+          onClick={() => {
+            setIsUploadOpen(true)
+            setIsUploadMinimized(false)
+          }}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-md transition-colors text-sm"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -258,7 +267,7 @@ function MyGallery() {
                     </button>
                     {/* Unpin button (Love Icon) */}
                     <button
-                      onClick={() => handleTogglePin(img.id)}
+                      onClick={() => handleTogglePin(img)}
                       className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-red-500 transition-colors shadow-md"
                       title="Unpin image"
                     >
@@ -368,7 +377,7 @@ function MyGallery() {
                     </button>
                     {/* Pin button (Love Icon Outline) */}
                     <button
-                      onClick={() => handleTogglePin(img.id)}
+                      onClick={() => handleTogglePin(img)}
                       className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white hover:text-red-500 transition-colors shadow-md"
                       title="Pin image"
                     >
@@ -418,9 +427,11 @@ function MyGallery() {
 
       {/* Upload Modal */}
       <UploadModal 
-        isOpen={isUploadOpen} 
-        onClose={() => setIsUploadOpen(false)} 
+        isOpen={isUploadOpen}
+        isMinimized={isUploadMinimized}
+        onClose={handleCloseUpload}
         onSuccess={handleUploadSuccess}
+        onMinimize={handleMinimizeUpload}
       />
 
       {/* Edit Name Modal */}

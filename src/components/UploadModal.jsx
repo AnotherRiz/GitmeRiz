@@ -2,7 +2,202 @@ import { useState, useEffect, useRef } from 'react'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
-function UploadModal({ isOpen, onClose, onSuccess }) {
+/**
+ * Generate thumbnail dari file image untuk preview (OPTIMIZED VERSION).
+ * 
+ * Optimizations:
+ * 1. Uses URL.createObjectURL instead of FileReader (no Base64 overhead)
+ * 2. Resize ke max 200x200px dengan JPEG quality 70%
+ * 3. Proper cleanup dengan URL.revokeObjectURL
+ */
+const generateThumbnail = (file, maxWidth = 200, maxHeight = 200) => {
+  return new Promise((resolve, reject) => {
+    // Step 1: Create object URL directly from file (instant, no memory copy)
+    const objectUrl = URL.createObjectURL(file)
+    
+    const img = new Image()
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl) // Cleanup on error
+      reject(new Error('Failed to load image'))
+    }
+    
+    img.onload = () => {
+      // Cleanup object URL immediately after load
+      URL.revokeObjectURL(objectUrl)
+      
+      try {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+
+        // Calculate new dimensions maintaining aspect ratio
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width
+            width = maxWidth
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height
+            height = maxHeight
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+        
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+        
+        // Convert canvas to blob with JPEG compression
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(URL.createObjectURL(blob))
+          } else {
+            reject(new Error('Failed to generate thumbnail'))
+          }
+        }, 'image/jpeg', 0.7)
+      } catch (error) {
+        reject(error)
+      }
+    }
+    
+    // Trigger image load
+    img.src = objectUrl
+  })
+}
+
+/**
+ * Queue system untuk generate thumbnail dengan concurrency limit.
+ * Mencegah CPU overload saat processing banyak images sekaligus.
+ */
+class ThumbnailQueue {
+  constructor(concurrency = 3) {
+    this.concurrency = concurrency // Max parallel generations
+    this.queue = []
+    this.running = 0
+  }
+
+  async add(task) {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ task, resolve, reject })
+      this.process()
+    })
+  }
+
+  async process() {
+    if (this.running >= this.concurrency || this.queue.length === 0) {
+      return
+    }
+
+    this.running++
+    const { task, resolve, reject } = this.queue.shift()
+
+    try {
+      const result = await task()
+      resolve(result)
+    } catch (error) {
+      reject(error)
+    } finally {
+      this.running--
+      this.process() // Process next item in queue
+    }
+  }
+}
+
+// Create global queue instance (concurrency = 3 thumbnails at a time)
+const thumbnailQueue = new ThumbnailQueue(3)
+
+/**
+ * ThumbnailPreview Component - Handles individual thumbnail with proper cleanup
+ */
+function ThumbnailPreview({ fileObj, onRemove, uploading, selectedFilesCount }) {
+  // Cleanup blob URL when component unmounts (prevents memory leak)
+  useEffect(() => {
+    return () => {
+      if (fileObj.previewUrl) {
+        URL.revokeObjectURL(fileObj.previewUrl)
+      }
+    }
+  }, [fileObj.previewUrl])
+
+  return (
+    <div className="relative flex flex-col p-2 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-xl group shadow-sm">
+      <div className="relative aspect-video rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+        {fileObj.previewUrl ? (
+          <img
+            src={fileObj.previewUrl}
+            alt={fileObj.title}
+            className="h-full w-auto object-contain"
+          />
+        ) : (
+          // Loading placeholder while thumbnail is being generated
+          <div className="flex flex-col items-center justify-center text-neutral-400">
+            <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span className="text-xs mt-2">Generating preview...</span>
+          </div>
+        )}
+        
+        {/* Individual Upload Status Overlay */}
+        {fileObj.status === 'uploading' && (
+          <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white text-xs font-semibold">
+            <span>{fileObj.progress}%</span>
+            <div className="w-12 bg-white/30 h-1 rounded-full overflow-hidden mt-1">
+              <div className="bg-blue-500 h-full" style={{ width: `${fileObj.progress}%` }} />
+            </div>
+          </div>
+        )}
+        
+        {fileObj.status === 'success' && (
+          <div className="absolute inset-0 bg-green-500/80 flex items-center justify-center text-white">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        )}
+
+        {fileObj.status === 'error' && (
+          <div className="absolute inset-0 bg-red-500/85 flex flex-col items-center justify-center text-white text-[10px] p-1 text-center">
+            <svg className="w-4 h-4 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="font-semibold truncate w-full">{fileObj.error}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Image Title (Text only for bulk upload, hidden if exactly 1 image is selected) */}
+      {selectedFilesCount > 1 && (
+        <div className="mt-2 px-1">
+          <span className="text-[10px] opacity-50 block font-semibold">Image Title</span>
+          <span className="text-xs font-semibold truncate block text-light-text/95 dark:text-dark-text/95" title={fileObj.title}>
+            {fileObj.title}
+          </span>
+        </div>
+      )}
+
+      {/* Delete button (only available if not uploading/success) */}
+      {!uploading && fileObj.status !== 'success' && (
+        <button
+          type="button"
+          onClick={() => onRemove(fileObj.id)}
+          className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full hover:bg-red-600 transition-colors shadow-md opacity-0 group-hover:opacity-100"
+          title="Remove file"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}
+
+function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
   const [selectedFiles, setSelectedFiles] = useState([])
   const [singleTitle, setSingleTitle] = useState('')
   const [visibility, setVisibility] = useState('private')
@@ -11,12 +206,16 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const fileInputRef = useRef(null)
+  const uploadInProgressRef = useRef(false) // Track if upload is actually running
 
-  // Reset states when modal closes/opens
+  // Reset states when modal fully closes (not just minimized)
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen && !uploadInProgressRef.current) {
+      // Cleanup all blob URLs to prevent memory leaks
       selectedFiles.forEach((f) => {
-        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+        if (f.previewUrl) {
+          URL.revokeObjectURL(f.previewUrl)
+        }
       })
       setSelectedFiles([])
       setSingleTitle('')
@@ -27,17 +226,78 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
     }
   }, [isOpen])
 
-  // Handle ESC key press
+  // Handle ESC key press - allow closing even during upload
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen && !uploading) {
-        onClose()
+      if (e.key === 'Escape' && isOpen) {
+        handleModalClose()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, uploading, onClose])
+  }, [isOpen, onClose])
 
+  // Helper to close/minimize modal
+  const handleModalClose = () => {
+    if (uploadInProgressRef.current && onMinimize) {
+      // Upload in progress: minimize instead of closing
+      onMinimize()
+    } else {
+      // No upload or no minimize handler: normal close
+      onClose()
+    }
+  }
+
+  if (!isOpen && !isMinimized) return null
+
+  // If minimized during upload, show a compact progress indicator instead of full modal
+  if (isMinimized && uploading) {
+    const successCount = selectedFiles.filter(f => f.status === 'success').length
+    const totalCount = selectedFiles.length
+    
+    return (
+      <div className="fixed bottom-6 right-6 z-[100] animate-fade-in">
+        <div className="bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 px-5 py-4 rounded-2xl shadow-2xl min-w-[280px]">
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <div>
+                <p className="text-sm font-semibold">Uploading images...</p>
+                <p className="text-xs opacity-60">{successCount} / {totalCount} complete</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                // Re-open modal to show full details
+                onClose()
+                setTimeout(() => {
+                  const event = new CustomEvent('reopenUploadModal')
+                  window.dispatchEvent(event)
+                }, 10)
+              }}
+              className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              title="Show details"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+          </div>
+          <div className="w-full bg-light-body dark:bg-dark-body h-1.5 rounded-full overflow-hidden">
+            <div
+              className="bg-blue-500 h-full rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render the full modal if it's closed or minimized
   if (!isOpen) return null
 
   const handleAddFiles = (newFilesList) => {
@@ -63,15 +323,43 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
       }
 
       const nameWithoutExt = f.name.substring(0, f.name.lastIndexOf('.'))
+      const fileId = Math.random().toString(36).substring(2, 9)
+      
+      // Add file immediately with placeholder (no blocking)
       processed.push({
         file: f,
-        id: Math.random().toString(36).substring(2, 9),
+        id: fileId,
         title: nameWithoutExt,
-        previewUrl: URL.createObjectURL(f),
+        previewUrl: null, // Will be set asynchronously
         progress: 0,
         status: 'pending',
         error: ''
       })
+
+      // Add to thumbnail generation queue (max 3 concurrent)
+      thumbnailQueue.add(() => generateThumbnail(f))
+        .then(thumbnailUrl => {
+          // Update preview URL when ready
+          setSelectedFiles(prev => 
+            prev.map(fileObj => 
+              fileObj.id === fileId 
+                ? { ...fileObj, previewUrl: thumbnailUrl }
+                : fileObj
+            )
+          )
+        })
+        .catch(err => {
+          console.warn('Failed to generate thumbnail for', f.name, err)
+          // Fallback to original file if thumbnail generation fails
+          const fallbackUrl = URL.createObjectURL(f)
+          setSelectedFiles(prev => 
+            prev.map(fileObj => 
+              fileObj.id === fileId 
+                ? { ...fileObj, previewUrl: fallbackUrl }
+                : fileObj
+            )
+          )
+        })
     }
 
     const nextFiles = [...selectedFiles, ...processed]
@@ -119,6 +407,7 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
     setSelectedFiles((prev) => {
       const target = prev.find((f) => f.id === id)
       if (target && target.previewUrl) {
+        // Cleanup blob URL to prevent memory leak
         URL.revokeObjectURL(target.previewUrl)
       }
       const next = prev.filter((f) => f.id !== id)
@@ -146,6 +435,7 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
     }
 
     setUploading(true)
+    uploadInProgressRef.current = true // Mark upload as in progress
     setError('')
     setProgress(0)
 
@@ -229,18 +519,20 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
       })
     }
 
-    let hasError = false
-    for (const fileObj of selectedFiles) {
-      if (fileObj.status === 'success') continue
-      try {
-        await uploadSingleFile(fileObj)
-      } catch (err) {
-        hasError = true
-        console.error('File upload failed:', fileObj.file.name, err)
-      }
-    }
+    // Upload all files in parallel using Promise.allSettled
+    const uploadPromises = selectedFiles
+      .filter(fileObj => fileObj.status !== 'success')
+      .map(fileObj => uploadSingleFile(fileObj))
+
+    const results = await Promise.allSettled(uploadPromises)
+
+    // Check if any uploads failed
+    const hasError = results.some(result => result.status === 'rejected')
 
     setUploading(false)
+    uploadInProgressRef.current = false // Mark upload as complete
+    setProgress(100) // Set to 100% when done
+    
     if (!hasError) {
       onClose()
     } else {
@@ -252,8 +544,8 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
     <div
       className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={(e) => {
-        if (!uploading && e.target === e.currentTarget) {
-          onClose()
+        if (e.target === e.currentTarget) {
+          handleModalClose()
         }
       }}
     >
@@ -266,17 +558,15 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
               <span className="text-xs opacity-60">({selectedFiles.length}/50)</span>
             )}
           </div>
-          {!uploading && (
-            <button
-              onClick={onClose}
-              className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-              aria-label="Close modal"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
+          <button
+            onClick={handleModalClose}
+            className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            aria-label="Close modal"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Form Content */}
@@ -354,69 +644,13 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
               </span>
               <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto p-1 border border-light-navbar/15 dark:border-dark-navbar/15 rounded-xl bg-light-body/20 dark:bg-dark-body/20 no-scrollbar">
                 {selectedFiles.map((fileObj) => (
-                  <div
+                  <ThumbnailPreview
                     key={fileObj.id}
-                    className="relative flex flex-col p-2 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-xl group shadow-sm"
-                  >
-                    <div className="relative aspect-video rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
-                      <img
-                        src={fileObj.previewUrl}
-                        alt={fileObj.title}
-                        className="h-full w-auto object-contain"
-                      />
-                      
-                      {/* Individual Upload Status Overlay */}
-                      {fileObj.status === 'uploading' && (
-                        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white text-xs font-semibold">
-                          <span>{fileObj.progress}%</span>
-                          <div className="w-12 bg-white/30 h-1 rounded-full overflow-hidden mt-1">
-                            <div className="bg-blue-500 h-full" style={{ width: `${fileObj.progress}%` }} />
-                          </div>
-                        </div>
-                      )}
-                      
-                      {fileObj.status === 'success' && (
-                        <div className="absolute inset-0 bg-green-500/80 flex items-center justify-center text-white">
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      )}
-
-                      {fileObj.status === 'error' && (
-                        <div className="absolute inset-0 bg-red-500/85 flex flex-col items-center justify-center text-white text-[10px] p-1 text-center">
-                          <svg className="w-4 h-4 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                          </svg>
-                          <span className="font-semibold truncate w-full">{fileObj.error}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Image Title (Text only for bulk upload, hidden if exactly 1 image is selected) */}
-                    {selectedFiles.length > 1 && (
-                      <div className="mt-2 px-1">
-                        <span className="text-[10px] opacity-50 block font-semibold">Image Title</span>
-                        <span className="text-xs font-semibold truncate block text-light-text/95 dark:text-dark-text/95" title={fileObj.title}>
-                          {fileObj.title}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Delete button (only available if not uploading/success) */}
-                    {!uploading && fileObj.status !== 'success' && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFile(fileObj.id)}
-                        className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full hover:bg-red-600 transition-colors shadow-md opacity-0 group-hover:opacity-100"
-                        title="Remove file"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
+                    fileObj={fileObj}
+                    onRemove={handleRemoveFile}
+                    uploading={uploading}
+                    selectedFilesCount={selectedFiles.length}
+                  />
                 ))}
               </div>
             </div>
@@ -480,11 +714,10 @@ function UploadModal({ isOpen, onClose, onSuccess }) {
           <div className="flex justify-end gap-3 pt-4 border-t border-light-navbar/10 dark:border-dark-navbar/10">
             <button
               type="button"
-              onClick={onClose}
-              disabled={uploading}
-              className="px-4 py-2 text-sm font-semibold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-light-navbar/10 dark:border-dark-navbar/10 hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+              onClick={handleModalClose}
+              className="px-4 py-2 text-sm font-semibold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-light-navbar/10 dark:border-dark-navbar/10 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
             >
-              Cancel
+              {uploading ? 'Minimize' : 'Cancel'}
             </button>
             <button
               type="submit"
