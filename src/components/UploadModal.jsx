@@ -438,15 +438,21 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
         })
     }
 
-    const nextFiles = [...selectedFiles, ...processed]
-    if (nextFiles.length === 1) {
-      if (singleTitle) {
-        nextFiles[0].title = singleTitle
-      } else {
-        setSingleTitle(nextFiles[0].title)
+    // Use functional update to avoid stale closure when called rapidly (e.g. paste twice)
+    setSelectedFiles(prev => {
+      const nextFiles = [...prev, ...processed]
+      
+      // Handle single title sync
+      if (nextFiles.length === 1) {
+        if (singleTitle) {
+          nextFiles[0].title = singleTitle
+        } else {
+          setSingleTitle(nextFiles[0].title)
+        }
       }
-    }
-    setSelectedFiles(nextFiles)
+      
+      return nextFiles
+    })
   }
 
   const handleFileChange = (e) => {
