@@ -255,6 +255,56 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
+  // Handle paste event (Ctrl+V) for image upload
+  useEffect(() => {
+    if (!isOpen || isMinimized) return
+
+    const handlePaste = (e) => {
+      // Don't hijack paste when user is typing in text inputs
+      const el = document.activeElement
+      const isTyping =
+        el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+      if (isTyping) return
+
+      // Check clipboard for image items
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      const pastedFiles = []
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        
+        // Skip non-file items
+        if (item.kind !== 'file') continue
+        
+        // Skip non-image items
+        if (!item.type.startsWith('image/')) continue
+        
+        const blob = item.getAsFile()
+        if (!blob) continue
+
+        // Build timestamped filename
+        const now = new Date()
+        const pad = (n) => String(n).padStart(2, '0')
+        const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+        const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+        const fileName = `image_${stamp}.${ext}`
+        
+        // Convert blob to File object
+        const file = new File([blob], fileName, { type: blob.type })
+        pastedFiles.push(file)
+      }
+
+      if (pastedFiles.length > 0) {
+        e.preventDefault()
+        handleAddFiles(pastedFiles)
+      }
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [isOpen, isMinimized])
+
   // Helper to close/minimize modal with animation
   const handleModalClose = () => {
     if (uploadInProgressRef.current && onMinimize) {
@@ -660,7 +710,7 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
                 Drag & drop files here, or <span className="text-blue-500 hover:underline">browse</span>
               </p>
               <p className="text-xs text-neutral-500 mt-1">
-                Supports up to 50 images. Max 100MB per file.
+                Supports up to 50 images. Max 100MB per file. Paste images with Ctrl+V.
               </p>
             </div>
           )}
