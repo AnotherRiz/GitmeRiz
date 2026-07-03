@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { get, api } from '../lib/api'
+import { get, api, post } from '../lib/api'
 import { getShortId } from '../lib/shortId'
+import { fetchStatuses } from '../lib/pollStatus'
 import UploadModal from '../components/UploadModal'
 import EditNameModal from '../components/EditNameModal'
 import ImageModal from '../components/ImageModal'
@@ -73,6 +74,33 @@ function MyGallery() {
 
     fetchMyImages()
   }, [authLoading, user])
+
+  // Poll processing items status
+  useEffect(() => {
+    const processingIds = images
+      .filter((img) => img.status === 'processing')
+      .map((img) => img.id)
+
+    if (processingIds.length === 0) return
+
+    const intervalId = setInterval(async () => {
+      // Pause polling when tab is hidden (save bandwidth)
+      if (document.hidden) return
+
+      const statusMap = await fetchStatuses(processingIds)
+      if (Object.keys(statusMap).length === 0) return // retry next tick
+
+      setImages((prev) =>
+        prev.map((img) =>
+          statusMap[img.id] && statusMap[img.id] !== img.status
+            ? { ...img, status: statusMap[img.id] }
+            : img
+        )
+      )
+    }, 2000)
+
+    return () => clearInterval(intervalId)
+  }, [images])
 
   if (authLoading) {
     return (
@@ -188,6 +216,25 @@ function MyGallery() {
     }
   }
 
+  const handleReprocess = async (img) => {
+    // Optimistically set to processing so the polling effect starts
+    setImages((prev) =>
+      prev.map((it) => (it.id === img.id ? { ...it, status: 'processing' } : it))
+    )
+
+    const res = await post(`/gallery/${img.id}/reprocess`, {})
+    if (res.ok && res.data) {
+      // Server returns the updated item (may already be active)
+      setImages((prev) => prev.map((it) => (it.id === img.id ? res.data : it)))
+    } else {
+      // Revert to failed on error
+      setImages((prev) =>
+        prev.map((it) => (it.id === img.id ? { ...it, status: 'failed_processing' } : it))
+      )
+      alert(res.error || 'Failed to retry processing.')
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-24">
       {/* Page Header */}
@@ -277,19 +324,47 @@ function MyGallery() {
                     </button>
                   </div>
 
-                  {/* <a> wrapper with raw URL for right-click, <img> shows thumbnail */}
-                  <a
-                    href={getImageUrl(img, 'r')}
-                    onClick={(e) => { e.preventDefault(); handleOpenImage(e, img); }}
-                    className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 h-[16.5rem] flex items-center justify-center"
-                  >
-                    <img
-                      src={getImageUrl(img, 't')}
-                      alt={img.title}
-                      loading="lazy"
-                      className="w-full h-full object-cover rounded-xl pointer-events-none"
-                    />
-                  </a>
+                  {/* Image display - different UI based on status */}
+                  <div className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 h-[16.5rem] flex items-center justify-center">
+                    {img.status === 'processing' ? (
+                      // Processing state: show spinner
+                      <div className="w-full h-full flex flex-col items-center justify-center text-neutral-400">
+                        <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        <span className="text-xs mt-2">Processing...</span>
+                      </div>
+                    ) : img.status === 'failed_processing' ? (
+                      // Failed state: show error + retry
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/10 text-red-500 gap-2 p-3 text-center">
+                        <span className="text-xs font-semibold">Processing failed</span>
+                        <button
+                          onClick={() => handleReprocess(img)}
+                          className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : (
+                      // Active state: show thumbnail with clickable link
+                      <a
+                        href={getImageUrl(img, 'r')}
+                        onClick={(e) => { 
+                          e.preventDefault()
+                          handleOpenImage(e, img)
+                        }}
+                        className="w-full h-full flex items-center justify-center"
+                      >
+                        <img
+                          src={getImageUrl(img, 't')}
+                          alt={img.title}
+                          loading="lazy"
+                          className="w-full h-full object-cover rounded-xl pointer-events-none"
+                        />
+                      </a>
+                    )}
+                  </div>
                   <div className="mt-3 px-1">
                     <h3 className="font-semibold text-sm text-light-text dark:text-dark-text" title={img.title}>
                       {displayTitle}
@@ -397,19 +472,47 @@ function MyGallery() {
                     </button>
                   </div>
 
-                  {/* <a> wrapper with raw URL for right-click, <img> shows thumbnail */}
-                  <a
-                    href={getImageUrl(img, 'r')}
-                    onClick={(e) => { e.preventDefault(); handleOpenImage(e, img); }}
-                    className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px]"
-                  >
-                    <img
-                      src={getImageUrl(img, 't')}
-                      alt={img.title}
-                      loading="lazy"
-                      className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02] pointer-events-none"
-                    />
-                  </a>
+                  {/* Image display - different UI based on status */}
+                  <div className="block w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[100px]">
+                    {img.status === 'processing' ? (
+                      // Processing state: show spinner
+                      <div className="w-full h-full flex flex-col items-center justify-center text-neutral-400 py-8">
+                        <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        <span className="text-xs mt-2">Processing...</span>
+                      </div>
+                    ) : img.status === 'failed_processing' ? (
+                      // Failed state: show error + retry
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/10 text-red-500 gap-2 p-3 text-center py-8">
+                        <span className="text-xs font-semibold">Processing failed</span>
+                        <button
+                          onClick={() => handleReprocess(img)}
+                          className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : (
+                      // Active state: show thumbnail with clickable link
+                      <a
+                        href={getImageUrl(img, 'r')}
+                        onClick={(e) => { 
+                          e.preventDefault()
+                          handleOpenImage(e, img)
+                        }}
+                        className="w-full h-full flex items-center justify-center"
+                      >
+                        <img
+                          src={getImageUrl(img, 't')}
+                          alt={img.title}
+                          loading="lazy"
+                          className="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02] pointer-events-none"
+                        />
+                      </a>
+                    )}
+                  </div>
                   <div className="mt-3 px-1">
                     <h3 className="font-semibold text-sm text-light-text dark:text-dark-text" title={img.title}>
                       {displayTitle}
