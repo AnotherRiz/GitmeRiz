@@ -27,8 +27,8 @@ Public content page.
 Controlled login form.
 
 - Fields: `username`, `password` (with show/hide toggle).
-- Client-side validation requires both fields.
-- Calls `login()` from `AuthContext`; on success navigates to `/dashboard`, otherwise shows the API error in a banner.
+- Client-side validation requires both fields (non-empty, whitespace trimmed from username).
+- Calls `login()` from `AuthContext`; on success navigates to `/dashboard`, otherwise shows the API error in a banner with a fallback message if none is provided.
 - Submit button shows "Logging in..." and is disabled while submitting.
 - Link to `/register`.
 
@@ -38,10 +38,17 @@ Controlled login form.
 
 **File:** `Register.jsx`
 
-Controlled registration form.
+Controlled registration form with field-level validation.
 
 - Fields: `name`, `username`, `email`, `password`, `confirmPassword` (both password fields have show/hide toggles).
-- Validates all fields present and that passwords match. `confirmPassword` is client-side only and not sent to the API.
+- **Field-level validation** using shared helpers from `lib/validation.js`:
+  - `name`: 2-50 characters
+  - `username`: 3-20 characters, alphanumeric + underscore only
+  - `email`: valid email format, max 255 characters
+  - `password`: minimum 8 characters
+  - `confirmPassword`: must match password (client-side only, not sent to API)
+- Per-field error messages appear beneath each input on validation failure.
+- Password field includes a non-blocking strength hint (suggests uppercase + digit if missing).
 - Calls `register()`; on success navigates to `/login`.
 - Link to `/login`.
 

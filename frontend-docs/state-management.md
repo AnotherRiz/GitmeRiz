@@ -18,7 +18,7 @@ Manages the authenticated user and exposes auth actions. Wrap the app in `<AuthP
 | `loading` | `boolean` | `true` while the session is being restored on app load |
 | `register` | `(fields) => Promise<{ok, data, error}>` | Register a new account |
 | `login` | `({ username, password }) => Promise<{ok, data, error}>` | Log in and store the token |
-| `logout` | `() => void` | Clear the token and user |
+| `logout` | `() => Promise<void>` | Clear server cookie via `POST /logout`, then remove token and user from local state |
 
 ### Session Restore
 
@@ -38,8 +38,8 @@ const result = await register({ name, username, email, password })
 // Login — on success, stores result.data.token in localStorage and sets user
 const result = await login({ username, password })
 
-// Logout — removes token and clears user
-logout()
+// Logout — calls POST /logout to clear server cookie, then removes token and clears user
+await logout()
 ```
 
 ### Usage
