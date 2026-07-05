@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
@@ -63,14 +63,11 @@ function MyGallery() {
   // Drag sensors: separate for desktop and mobile
   // Desktop (MouseSensor): 8px distance activation for click vs drag distinction
   // Mobile (TouchSensor): 250ms delay to allow scrolling, small tolerance
-  // Memoize sensors to prevent recreation on every render (which causes event listener leaks)
-  const sensors = useMemo(() => {
-    return useSensors(
-      useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-      useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
-      useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-    )
-  }, [])
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   // Helper: Backend API URL for image bytes. type = 't' (thumbnail) or 'r' (raw).
   // Always returns clean URL without token.
