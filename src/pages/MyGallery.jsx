@@ -3,7 +3,6 @@ import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-
 import {
   DndContext,
   closestCenter,
-  PointerSensor,
   MouseSensor,
   TouchSensor,
   KeyboardSensor,
