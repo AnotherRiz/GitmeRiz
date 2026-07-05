@@ -253,9 +253,10 @@ A single draggable card in the pinned Bento grid on `MyGallery`.
 
 Behavior:
 
-- Uses `useSortable` from `@dnd-kit/sortable`; drag listeners live on the root.
-- **Desktop**: MouseSensor with 6px activation distance allows quick drag after tiny movement; plain clicks still open the image.
-- **Mobile**: TouchSensor with 250ms hold delay and 5px tolerance prevents accidental drags while scrolling; user must press and hold before dragging.
-- `cursor-grab` by default, `cursor-grabbing` while dragging.
+- Uses `useSortable` from `@dnd-kit/sortable`; drag listeners are attached to a dedicated handle (`setActivatorNodeRef`).
+- **Drag Handle**: A hamburger icon (three horizontal lines) appears on hover at the top-left corner. Only this handle initiates drag operations.
+- **Desktop**: MouseSensor with 6px activation distance allows quick drag from handle; plain clicks anywhere on card still open the image.
+- **Mobile**: TouchSensor with 0ms delay and 5px tolerance; drag only from handle, rest of card remains scrollable and tappable.
+- Visual feedback: Handle shows `cursor-grab` idle and `cursor-grabbing` when active.
 - Hover reveals a bottom gradient with the title sliding up; hover also scales the card slightly.
 - Renders processing spinner / failed-retry / active image based on `img.status`.

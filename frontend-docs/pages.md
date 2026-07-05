@@ -106,7 +106,7 @@ The user's private workspace for managing their uploads. This is the most featur
 ### Per-item actions
 
 - **Pin/unpin** → `PATCH /gallery/{id}` with `{ pinned: true/false }` (enforces the 8-pin limit client-side with modal feedback).
-- **Reorder pins** → `PATCH /gallery/reorder-pins` (drag-and-drop with hold-to-drag on mobile).
+- **Reorder pins** → `PATCH /gallery/reorder-pins` (drag-and-drop via dedicated drag handle that appears on hover).
 - **Rename** → opens `EditNameModal` (`PATCH /gallery/{id}` with `{ title }` via unified endpoint).
 - **Toggle visibility** → `PATCH /gallery/{id}` with `{ visibility }` via unified endpoint.
 - **Delete** → `DELETE /gallery/{id}` with `ConfirmModal`; **Shift+click skips confirmation** for power users.

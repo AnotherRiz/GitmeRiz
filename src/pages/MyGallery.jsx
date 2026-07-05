@@ -61,10 +61,10 @@ function MyGallery() {
 
   // Drag sensors for desktop (mouse) and mobile (touch) with different activation patterns
   // Desktop: quick drag after tiny movement; plain click still opens the image
-  // Mobile: must press and hold ~250ms before dragging; small tolerance lets scroll win
+  // Mobile: immediate touch response for scrolling, but drag only from handle
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 0, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 

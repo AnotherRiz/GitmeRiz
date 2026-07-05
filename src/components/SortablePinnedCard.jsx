@@ -22,6 +22,7 @@ function SortablePinnedCard({
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
@@ -41,15 +42,26 @@ function SortablePinnedCard({
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
-      className={`group relative overflow-hidden rounded-2xl bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border shadow-sm touch-none transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/20 dark:hover:shadow-white/10 ${
+      className={`group relative overflow-hidden rounded-2xl bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border shadow-sm transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/20 dark:hover:shadow-white/10 ${
         isVertical ? 'row-span-2' : ''
-      } ${isDragging ? 'opacity-80 shadow-2xl ring-2 ring-blue-500/50 cursor-grabbing' : 'cursor-grab'}`}
+      } ${isDragging ? 'opacity-80 shadow-2xl ring-2 ring-blue-500/50' : ''}`}
     >
+      {/* Drag Handle - visible only on hover, top-left corner */}
+      <div
+        ref={setActivatorNodeRef}
+        {...listeners}
+        className="absolute top-2.5 left-2.5 z-30 p-2 rounded-lg bg-black/60 text-white shadow-md hover:bg-black/85 transition-all duration-200 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing touch-none"
+        title="Drag to reorder"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8h16M4 16h16" />
+        </svg>
+      </div>
+
       {/* Visibility Badge */}
       <button
         onClick={() => onToggleVisibility(img)}
-        className="absolute top-2.5 left-2.5 z-20 p-1.5 rounded-lg bg-black/60 text-white shadow-md hover:bg-black/85 transition-all duration-200 hover:scale-105 active:scale-95 opacity-0 group-hover:opacity-100 cursor-pointer"
+        className="absolute top-2.5 left-14 z-20 p-1.5 rounded-lg bg-black/60 text-white shadow-md hover:bg-black/85 transition-all duration-200 hover:scale-105 active:scale-95 opacity-0 group-hover:opacity-100 cursor-pointer"
         title={img.visibility === 'public' ? 'Public Image (Click to make Private)' : 'Private Image (Click to make Public)'}
       >
         {img.visibility === 'public' ? (
