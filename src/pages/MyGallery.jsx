@@ -3,8 +3,7 @@ import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-
 import {
   DndContext,
   closestCenter,
-  MouseSensor,
-  TouchSensor,
+  PointerSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -59,12 +58,10 @@ function MyGallery() {
   const [pinnedOrder, setPinnedOrder] = useState([])
   const sentinelRef = useRef(null)
 
-  // Drag sensors for desktop (mouse) and mobile (touch) with different activation patterns
-  // Desktop: quick drag after tiny movement; plain click still opens the image
-  // Mobile: immediate touch response for scrolling, but drag only from handle
+  // Drag sensors: use PointerSensor for both desktop and mobile
+  // Distance activation prevents accidental drags and allows clicks/taps to work
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 0, tolerance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
