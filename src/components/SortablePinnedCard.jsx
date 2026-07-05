@@ -13,6 +13,7 @@ function SortablePinnedCard({
   onToggleVisibility,
   onOpenEdit,
   onTogglePin,
+  onDelete,
   onOpenImage,
   onReprocess,
   onImageLoad,
@@ -83,6 +84,16 @@ function SortablePinnedCard({
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+          </svg>
+        </button>
+        {/* Delete button */}
+        <button
+          onClick={(e) => onDelete(e, img)}
+          className="p-2 rounded-full bg-black/60 hover:bg-red-600 text-white transition-colors shadow-md cursor-pointer"
+          title="Delete image (Shift+click to skip confirmation)"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </button>
       </div>

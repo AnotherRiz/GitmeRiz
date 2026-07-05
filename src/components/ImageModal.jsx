@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getShortId } from '../lib/shortId'
+import ConfirmModal from './ConfirmModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 
@@ -32,6 +33,7 @@ function ImageModal({ image, onClose }) {
   
   // State untuk download
   const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState(null) // Error message for download alert modal
   
   // Ref untuk anchor point (tidak trigger re-render)
   const anchorPoint = useRef({ x: 0, y: 0 })
@@ -289,7 +291,7 @@ function ImageModal({ image, onClose }) {
 
       if (!response.ok) {
         console.error('Download failed:', response.status)
-        alert('Failed to download image. Please try again.')
+        setDownloadError('Failed to download image. Please try again.')
         return
       }
 
@@ -319,7 +321,7 @@ function ImageModal({ image, onClose }) {
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Download error:', error)
-      alert('Failed to download image. Please try again.')
+      setDownloadError('Failed to download image. Please try again.')
     } finally {
       setDownloading(false)
     }
@@ -499,6 +501,15 @@ function ImageModal({ image, onClose }) {
           />
         </div>
       </div>
+
+      {/* Download Error Alert Modal */}
+      <ConfirmModal
+        isOpen={!!downloadError}
+        onClose={() => setDownloadError(null)}
+        title="Download Failed"
+        message={downloadError || ''}
+        variant="default"
+      />
     </div>
   )
 }
