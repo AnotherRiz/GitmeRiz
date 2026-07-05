@@ -92,6 +92,152 @@ if (res.ok) {
 
 ---
 
+## Gallery Endpoints with Cursor-Based Pagination
+
+Gallery listing endpoints (`GET /gallery/public` and `GET /gallery/me`) now use cursor-based pagination for better performance with large datasets.
+
+### Response Envelope
+
+Instead of returning a plain array, these endpoints return a paginated envelope:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [ /* GalleryItem[] */ ],
+    "next_cursor": 450,
+    "limit": 50
+  }
+}
+```
+
+### Query Parameters
+
+- `cursor` (optional): The `id` of the last item from the previous page. Omit on the first request.
+- `limit` (optional): Items per page (default `50`, max `100`).
+
+### Infinite Scroll Usage
+
+```js
+// First page
+const params = new URLSearchParams()
+params.set('limit', '50')
+const res = await get(`/gallery/public?${params.toString()}`)
+
+// Subsequent pages
+if (res.data.next_cursor) {
+  params.set('cursor', res.data.next_cursor)
+  const nextRes = await get(`/gallery/public?${params.toString()}`)
+  // Append res.data.items to existing list
+}
+```
+
+Results are ordered by `id DESC` (newest first). When `next_cursor` is `null`, you've reached the end.
+
+### Pinned Images Endpoint
+
+`GET /gallery/me/pinned` returns the current user's pinned images (max 8) without pagination, ordered by `pin_order ASC, updated_at DESC`.
+
+---
+
+## Unified Gallery Updates: `PATCH /gallery/{id}`
+
+All gallery item updates (title, visibility, pinned status) now use a single endpoint instead of separate endpoints.
+
+### Request
+
+Send only the fields you want to change:
+
+```js
+// Update title only
+const res = await api('/gallery/123', {
+  method: 'PATCH',
+  body: JSON.stringify({ title: 'New Title' }),
+})
+
+// Update multiple fields at once
+const res = await api('/gallery/123', {
+  method: 'PATCH', 
+  body: JSON.stringify({
+    title: 'Updated Photo',
+    visibility: 'public',
+    pinned: true
+  }),
+})
+```
+
+### Validation
+
+- `title`: Must not be empty or whitespace
+- `visibility`: Must be `public` or `private` (case-insensitive)
+- `pinned`: Enforces 8-pin limit when setting to `true`
+
+The response returns the fully updated gallery item with computed fields like `pin_order`.
+
+---
+
+## Signed URLs for Private Images
+
+Private images can be embedded in standard `<img>` tags using signed URLs, avoiding the need for blob-based authentication.
+
+### Request Signed URL
+
+```js
+import { getSignedUrl } from '../lib/api'
+
+const result = await getSignedUrl(image.short_id)
+if (result.ok) {
+  const signedUrl = result.data.url // 15-minute expiry
+  // e.g. "http://localhost:3000/gallery/r/abc123?expires=1719936000&sig=..."
+}
+```
+
+### URL Variants
+
+The signature works across all image size variants by swapping the path segment:
+
+```js
+const rawUrl = result.data.url      // /gallery/r/{short_id}?expires=...&sig=...
+const thumbnailUrl = rawUrl.replace('/gallery/r/', '/gallery/t/')
+const previewUrl = rawUrl.replace('/gallery/r/', '/gallery/p/')
+```
+
+### SecureImage Component Usage
+
+The enhanced `SecureImage` component automatically handles public vs private images:
+
+```jsx
+// Intelligent selection: direct URL for public, signed URL for private
+<SecureImage image={imageObject} variant="t" alt={imageObject.title} className="..." />
+
+// Fallback to blob method (backward compatibility)
+<SecureImage src="/gallery/t/abc123" alt="Image" className="..." />
+```
+
+---
+
+## Download Endpoint
+
+`GET /gallery/d/{id}` serves images with `Content-Disposition: attachment`, forcing a download with the original filename.
+
+### Usage
+
+```js
+// Public images: direct link
+const downloadUrl = `${BASE_URL}/gallery/d/${image.id}`
+window.open(downloadUrl) // or create <a> element
+
+// Private images: fetch with auth, then trigger download
+const response = await fetch(downloadUrl, {
+  credentials: 'include',
+  headers: { Authorization: `Bearer ${token}` }
+})
+const blob = await response.blob()
+// ... create object URL and download
+```
+
+---
+
 ## Auth Validation: `lib/validation.js`
 
 Pure validation functions used by auth forms (Register, Login). All return `null` on success or an error string on failure.
@@ -198,8 +344,11 @@ const getImageUrl = (img, type = 't') =>
 Full endpoint documentation (request/response shapes, error codes) lives in [`../api-docs.md`](../api-docs.md). Notable endpoints used by the frontend:
 
 - `POST /register`, `POST /login`, `POST /logout`, `GET /users/me`, `GET /users`
-- `GET /gallery/me`, `GET /gallery/public`
+- `GET /gallery/public`, `GET /gallery/me`, `GET /gallery/me/pinned` with cursor-based pagination
 - `POST /gallery` (upload), `POST /gallery/status`, `POST /gallery/{id}/reprocess`
-- `PATCH /gallery/{id}/title`, `/visibility`, `/pinned`
+- `GET /gallery/r/{short_id}`, `GET /gallery/t/{short_id}`, `GET /gallery/p/{short_id}` (raw, thumbnail, preview)
+- `GET /gallery/d/{id}` (force download with original filename)
+- `POST /gallery/{short_id}/sign` (signed URLs for private images)
+- `PATCH /gallery/{id}` (unified updates: title, visibility, pinned)
 - `PATCH /gallery/reorder-pins`
 - `DELETE /gallery/{id}`
