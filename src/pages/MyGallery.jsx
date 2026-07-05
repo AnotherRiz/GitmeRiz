@@ -270,6 +270,15 @@ function MyGallery() {
     )
   }
 
+  // Safety check: ensure arrays are initialized before filtering
+  if (!Array.isArray(images) || !Array.isArray(pinnedImages)) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <p className="opacity-60">Loading gallery...</p>
+      </div>
+    )
+  }
+
   // Open an image: update query param to show modal.
   // The URL becomes /:username/gallery?view={short_id}
   const handleOpenImage = (e, img) => {
@@ -286,10 +295,10 @@ function MyGallery() {
   }
 
   // Filter unpinned images for the current user only (pinnedImages handled separately)
-  const unpinnedImages = images.filter((img) => img.user_id === user.id)
+  const unpinnedImages = (images || []).filter((img) => img.user_id === user.id)
   
   // Sort pinned images by the session-local drag order
-  const sortedPinnedImages = pinnedImages
+  const sortedPinnedImages = (pinnedImages || [])
     .sort((a, b) => {
       const ia = pinnedOrder.indexOf(a.id)
       const ib = pinnedOrder.indexOf(b.id)
