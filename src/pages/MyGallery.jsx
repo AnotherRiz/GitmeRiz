@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
@@ -63,11 +63,14 @@ function MyGallery() {
   // Drag sensors: separate for desktop and mobile
   // Desktop (MouseSensor): 8px distance activation for click vs drag distinction
   // Mobile (TouchSensor): 250ms delay to allow scrolling, small tolerance
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  // Memoize sensors to prevent recreation on every render (which causes event listener leaks)
+  const sensors = useMemo(() => {
+    return useSensors(
+      useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+      useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+      useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    )
+  }, [])
 
   // Helper: Backend API URL for image bytes. type = 't' (thumbnail) or 'r' (raw).
   // Always returns clean URL without token.
@@ -343,6 +346,9 @@ function MyGallery() {
 
   // Reorder pinned images on drag end (persisted to backend).
   const handleDragEnd = async (event) => {
+    // Early return if component unmounted during drag
+    if (!isMountedRef.current) return
+    
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -358,6 +364,10 @@ function MyGallery() {
       method: 'PATCH',
       body: JSON.stringify({ ordered_ids: newOrder }),
     })
+    
+    // Only update if still mounted
+    if (!isMountedRef.current) return
+    
     if (!res.ok) {
       // Revert on error
       setPinnedOrder(pinnedOrder)
