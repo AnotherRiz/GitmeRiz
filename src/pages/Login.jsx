@@ -18,20 +18,21 @@ function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    // Client-side validation
-    if (!form.username || !form.password) {
+    // Lightweight validation - only check non-empty
+    if (!form.username.trim() || !form.password) {
       setError('Username and password are required.')
       return
     }
 
     setSubmitting(true)
-    const result = await login(form)
+    const result = await login({ username: form.username.trim(), password: form.password })
     setSubmitting(false)
 
     if (result.ok) {
       navigate('/dashboard')
     } else {
-      setError(result.error)
+      // Friendly error from API or fallback
+      setError(result.error || 'Invalid username or password.')
     }
   }
 

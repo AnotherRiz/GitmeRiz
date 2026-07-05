@@ -92,6 +92,57 @@ if (res.ok) {
 
 ---
 
+## Auth Validation: `lib/validation.js`
+
+Pure validation functions used by auth forms (Register, Login). All return `null` on success or an error string on failure.
+
+### Functions
+
+```js
+validateUsername(username)
+// → null | "Username is required." | "Username must be 3-20 characters." | etc.
+
+validateName(name)
+// → null | "Name is required." | "Name must be 2-50 characters."
+
+validateEmail(email)
+// → null | "Email is required." | "Email must be at most 255 characters." | "Please enter a valid email address."
+
+validatePassword(password)
+// → null | "Password is required." | "Password must be at least 8 characters."
+
+passwordStrengthHint(password)
+// → null | "Tip: use at least 1 uppercase letter and 1 digit for a stronger password."
+// Non-blocking hint (does not prevent submission)
+```
+
+### Usage in Register Form
+
+```js
+import { validateName, validateUsername, validateEmail, validatePassword } from '../lib/validation'
+
+const errors = {}
+const nameError = validateName(form.name)
+const usernameError = validateUsername(form.username)
+const emailError = validateEmail(form.email)
+const passwordError = validatePassword(form.password)
+
+if (nameError) errors.name = nameError
+if (usernameError) errors.username = usernameError
+// ...
+
+if (Object.keys(errors).length > 0) {
+  setFieldErrors(errors)
+  return
+}
+
+// Proceed with API call
+```
+
+The Register page displays per-field errors beneath each input and a password strength hint when applicable.
+
+---
+
 ## Status Polling: `lib/pollStatus.js`
 
 Used by uploads that are processed asynchronously on the backend. It batch-checks the status of many items in a single request.
@@ -146,7 +197,7 @@ const getImageUrl = (img, type = 't') =>
 
 Full endpoint documentation (request/response shapes, error codes) lives in [`../api-docs.md`](../api-docs.md). Notable endpoints used by the frontend:
 
-- `POST /register`, `POST /login`, `GET /users/me`, `GET /users`
+- `POST /register`, `POST /login`, `POST /logout`, `GET /users/me`, `GET /users`
 - `GET /gallery/me`, `GET /gallery/public`
 - `POST /gallery` (upload), `POST /gallery/status`, `POST /gallery/{id}/reprocess`
 - `PATCH /gallery/{id}/title`, `/visibility`, `/pinned`
