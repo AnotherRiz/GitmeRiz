@@ -176,46 +176,6 @@ The response returns the fully updated gallery item with computed fields like `p
 
 ---
 
-## Signed URLs for Private Images
-
-Private images can be embedded in standard `<img>` tags using signed URLs, avoiding the need for blob-based authentication.
-
-### Request Signed URL
-
-```js
-import { getSignedUrl } from '../lib/api'
-
-const result = await getSignedUrl(image.short_id)
-if (result.ok) {
-  const signedUrl = result.data.url // 15-minute expiry
-  // e.g. "http://localhost:3000/gallery/r/abc123?expires=1719936000&sig=..."
-}
-```
-
-### URL Variants
-
-The signature works across all image size variants by swapping the path segment:
-
-```js
-const rawUrl = result.data.url      // /gallery/r/{short_id}?expires=...&sig=...
-const thumbnailUrl = rawUrl.replace('/gallery/r/', '/gallery/t/')
-const previewUrl = rawUrl.replace('/gallery/r/', '/gallery/p/')
-```
-
-### SecureImage Component Usage
-
-The enhanced `SecureImage` component automatically handles public vs private images:
-
-```jsx
-// Intelligent selection: direct URL for public, signed URL for private
-<SecureImage image={imageObject} variant="t" alt={imageObject.title} className="..." />
-
-// Fallback to blob method (backward compatibility)
-<SecureImage src="/gallery/t/abc123" alt="Image" className="..." />
-```
-
----
-
 ## Download Endpoint
 
 `GET /gallery/d/{id}` serves images with `Content-Disposition: attachment`, forcing a download with the original filename.
@@ -348,7 +308,6 @@ Full endpoint documentation (request/response shapes, error codes) lives in [`..
 - `POST /gallery` (upload), `POST /gallery/status`, `POST /gallery/{id}/reprocess`
 - `GET /gallery/r/{short_id}`, `GET /gallery/t/{short_id}`, `GET /gallery/p/{short_id}` (raw, thumbnail, preview)
 - `GET /gallery/d/{id}` (force download with original filename)
-- `POST /gallery/{short_id}/sign` (signed URLs for private images)
 - `PATCH /gallery/{id}` (unified updates: title, visibility, pinned)
 - `PATCH /gallery/reorder-pins`
 - `DELETE /gallery/{id}`

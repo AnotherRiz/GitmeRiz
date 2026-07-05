@@ -7,12 +7,12 @@ This document describes how the application is wired together: the folder layout
 ```
 src/
 ├── components/          # Reusable UI components
+│   ├── ConfirmModal.jsx
 │   ├── EditNameModal.jsx
 │   ├── FloatingDock.jsx
 │   ├── ImageModal.jsx
 │   ├── Navbar.jsx
 │   ├── NavDropdown.jsx
-│   ├── SecureImage.jsx
 │   ├── SortablePinnedCard.jsx
 │   ├── UploadModal.jsx
 │   └── UserDropdown.jsx
