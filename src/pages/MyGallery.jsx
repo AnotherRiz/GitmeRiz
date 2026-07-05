@@ -58,6 +58,7 @@ function MyGallery() {
   // Pinned order from backend (pin_order field). User can drag-and-drop to reorder.
   const [pinnedOrder, setPinnedOrder] = useState([])
   const sentinelRef = useRef(null)
+  const isMountedRef = useRef(true)
 
   // Drag sensors: separate for desktop and mobile
   // Desktop (MouseSensor): 8px distance activation for click vs drag distinction
@@ -124,6 +125,9 @@ function MyGallery() {
       
       const res = await get(`/gallery/me?${params.toString()}`)
       
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) return
+      
       if (res.ok) {
         const { items, next_cursor } = res.data
         // Filter only unpinned images for the main gallery (pinned handled separately)
@@ -138,12 +142,16 @@ function MyGallery() {
       }
     } catch (err) {
       console.error('Error fetching images:', err)
-      setError('Network error. Please try again.')
+      if (isMountedRef.current) {
+        setError('Network error. Please try again.')
+      }
     } finally {
-      if (isLoadMore) {
-        setLoadingMore(false)
-      } else {
-        setLoading(false)
+      if (isMountedRef.current) {
+        if (isLoadMore) {
+          setLoadingMore(false)
+        } else {
+          setLoading(false)
+        }
       }
     }
   }
@@ -152,7 +160,7 @@ function MyGallery() {
   const fetchPinnedImages = async () => {
     try {
       const res = await get('/gallery/me/pinned')
-      if (res.ok) {
+      if (res.ok && isMountedRef.current) {
         setPinnedImages(res.data)
         // Update the pinned order based on pin_order from backend
         const orderedIds = res.data
@@ -177,6 +185,14 @@ function MyGallery() {
     fetchMyImages(false)
     fetchPinnedImages()
   }, [authLoading, user])
+
+  // Cleanup: mark component as unmounted
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // Infinite scroll with IntersectionObserver  
   useEffect(() => {
@@ -218,9 +234,18 @@ function MyGallery() {
     const intervalId = setInterval(async () => {
       // Pause polling when tab is hidden (save bandwidth)
       if (document.hidden) return
+      
+      // Stop polling if component unmounted
+      if (!isMountedRef.current) {
+        clearInterval(intervalId)
+        return
+      }
 
       const statusMap = await fetchStatuses(processingIds)
       if (Object.keys(statusMap).length === 0) return // retry next tick
+      
+      // Only update state if still mounted
+      if (!isMountedRef.current) return
 
       // Update both pinned and unpinned images with new statuses
       setPinnedImages((prev) =>
