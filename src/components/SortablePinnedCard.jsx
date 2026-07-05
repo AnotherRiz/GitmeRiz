@@ -44,7 +44,7 @@ function SortablePinnedCard({
       {...listeners}
       className={`group relative overflow-hidden rounded-2xl bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border shadow-sm transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/20 dark:hover:shadow-white/10 ${
         isVertical ? 'row-span-2' : ''
-      } ${isDragging ? 'opacity-80 shadow-2xl ring-2 ring-blue-500/50' : ''}`}
+      } ${isDragging ? 'opacity-80 shadow-2xl ring-2 ring-blue-500/50 cursor-grabbing' : 'cursor-grab'}`}
     >
       {/* Visibility Badge */}
       <button
@@ -100,11 +100,10 @@ function SortablePinnedCard({
 
       {/* Image display - different UI based on status */}
       <div 
-        className="w-full h-full min-h-[11rem] bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center cursor-pointer"
-        onClick={(e) => onOpenImage(e, img)}
+        className="w-full h-full min-h-[11rem] bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center"
       >
         {img.status === 'processing' ? (
-          <div className="w-full h-full flex flex-col items-center justify-center text-neutral-400 pointer-events-none">
+          <div className="w-full h-full flex flex-col items-center justify-center text-neutral-400">
             <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -113,7 +112,7 @@ function SortablePinnedCard({
           </div>
         ) : img.status === 'failed_processing' ? (
           <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/10 text-red-500 gap-2 p-3 text-center">
-            <span className="text-xs font-semibold pointer-events-none">Processing failed</span>
+            <span className="text-xs font-semibold">Processing failed</span>
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -130,7 +129,11 @@ function SortablePinnedCard({
             alt={img.title}
             loading="lazy"
             onLoad={(e) => onImageLoad(e, img.id)}
-            className="w-full h-full object-cover select-none pointer-events-none"
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenImage(e, img)
+            }}
+            className="w-full h-full object-cover select-none cursor-pointer"
           />
         )}
       </div>
