@@ -1,11 +1,19 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import {
+  validateName,
+  validateUsername,
+  validateEmail,
+  validatePassword,
+  passwordStrengthHint,
+} from '../lib/validation'
 
 function Register() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     name: '',
@@ -18,25 +26,49 @@ function Register() {
   const navigate = useNavigate()
 
   const handleChange = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+    // Clear errors when user edits
     if (error) setError('')
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => ({ ...prev, [name]: null }))
+    }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    // Client-side validation
-    if (!form.name || !form.username || !form.email || !form.password || !form.confirmPassword) {
-      setError('All fields are required.')
-      return
+    // Field-level validation using shared validators
+    const errors = {}
+    const nameError = validateName(form.name)
+    const usernameError = validateUsername(form.username)
+    const emailError = validateEmail(form.email)
+    const passwordError = validatePassword(form.password)
+
+    if (nameError) errors.name = nameError
+    if (usernameError) errors.username = usernameError
+    if (emailError) errors.email = emailError
+    if (passwordError) errors.password = passwordError
+
+    // Client-side password match check (confirmPassword never sent to API)
+    if (form.password && form.confirmPassword && form.password !== form.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match.'
     }
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match.')
+    if (!form.confirmPassword) {
+      errors.confirmPassword = 'Please confirm your password.'
+    }
+
+    // If any validation failed, show errors and do not call API
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      setError('Please fix the errors below.')
       return
     }
 
+    setFieldErrors({})
+    setError('')
     setSubmitting(true)
-    // Note: confirmPassword is validated client-side only, not sent to API
+
     const result = await register({
       name: form.name,
       username: form.username,
@@ -93,6 +125,9 @@ function Register() {
               className={inputClass}
               placeholder="Name"
             />
+            {fieldErrors.name && (
+              <p className="text-red-500 text-xs mt-1">{fieldErrors.name}</p>
+            )}
           </div>
 
           {/* Username */}
@@ -109,6 +144,9 @@ function Register() {
               className={inputClass}
               placeholder="Username"
             />
+            {fieldErrors.username && (
+              <p className="text-red-500 text-xs mt-1">{fieldErrors.username}</p>
+            )}
           </div>
 
           {/* Email */}
@@ -125,6 +163,9 @@ function Register() {
               className={inputClass}
               placeholder="Email"
             />
+            {fieldErrors.email && (
+              <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>
+            )}
           </div>
 
           {/* Password */}
@@ -151,6 +192,14 @@ function Register() {
                 <EyeIcon visible={showPassword} />
               </button>
             </div>
+            {fieldErrors.password && (
+              <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>
+            )}
+            {!fieldErrors.password && form.password && passwordStrengthHint(form.password) && (
+              <p className="text-neutral-500 dark:text-neutral-400 text-xs mt-1">
+                {passwordStrengthHint(form.password)}
+              </p>
+            )}
           </div>
 
           {/* Confirm Password */}
@@ -177,6 +226,9 @@ function Register() {
                 <EyeIcon visible={showConfirm} />
               </button>
             </div>
+            {fieldErrors.confirmPassword && (
+              <p className="text-red-500 text-xs mt-1">{fieldErrors.confirmPassword}</p>
+            )}
           </div>
 
           {/* Register button */}
