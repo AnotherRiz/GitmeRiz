@@ -45,8 +45,11 @@ export function AuthProvider({ children }) {
     return result
   }
 
-  // Log out
-  const logout = () => {
+  // Log out - clears server cookie and local state
+  const logout = async () => {
+    // Clear the server cookie (safe even without a valid session)
+    await post('/logout', {})
+    // Always clear local state even if the request fails
     localStorage.removeItem('token')
     setUser(null)
   }
