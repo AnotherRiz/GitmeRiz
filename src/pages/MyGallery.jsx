@@ -74,8 +74,8 @@ function MyGallery() {
   const viewImageId = searchParams.get('view')
 
   useEffect(() => {
-    if (viewImageId && (images.length > 0 || pinnedImages.length > 0)) {
-      const allImages = [...pinnedImages, ...images]
+    if (viewImageId && ((images && images.length > 0) || (pinnedImages && pinnedImages.length > 0))) {
+      const allImages = [...(pinnedImages || []), ...(images || [])]
       const imageToView = allImages.find(img => getShortId(img) === viewImageId)
       if (imageToView) {
         setSelectedImage(imageToView)
@@ -207,7 +207,7 @@ function MyGallery() {
 
   // Poll processing items status
   useEffect(() => {
-    const allImages = [...pinnedImages, ...images]
+    const allImages = [...(pinnedImages || []), ...(images || [])]
     const processingIds = allImages
       .filter((img) => img.status === 'processing')
       .map((img) => img.id)
