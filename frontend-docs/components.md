@@ -68,41 +68,6 @@ Avatar button showing the user's initials, opening a menu with name, email, and 
 
 ---
 
-## SecureImage
-
-**File:** `SecureImage.jsx`
-
-Enhanced image component that intelligently handles both public and private images with optimal loading strategies.
-
-**Props:**
-
-| Prop | Type | Description |
-| --- | --- | --- |
-| `src` | `string` (optional) | Direct image URL (fallback mode) |
-| `alt` | `string` | Alt text for accessibility |
-| `className` | `string` | CSS classes |
-| `image` | `object` (optional) | Gallery image object with `visibility`, `short_id` |
-| `variant` | `string` (optional) | Image size variant (`'t'` for thumbnail, `'p'` for preview, `'r'` for raw). Default: `'t'` |
-
-**Features:**
-- **Public images**: Uses direct URLs (`/gallery/{variant}/{short_id}`) for better browser caching
-- **Private images**: Automatically requests signed URLs via `POST /gallery/{short_id}/sign`
-- **Signature retry**: If image fails to load and it was signed, retries once (handles expired signatures)
-- **Fallback support**: Falls back to authenticated blob method when no image object provided
-- **Loading/error states**: Shows skeleton loader and error UI
-- **Memory management**: Properly cleans up blob URLs to prevent leaks
-
-**Usage:**
-```jsx
-// Intelligent mode (recommended)
-<SecureImage image={galleryItem} variant="t" alt={galleryItem.title} />
-
-// Fallback mode (backward compatibility)  
-<SecureImage src="/gallery/t/abc123" alt="Image" />
-```
-
----
-
 ## EditNameModal
 
 **File:** `EditNameModal.jsx`
