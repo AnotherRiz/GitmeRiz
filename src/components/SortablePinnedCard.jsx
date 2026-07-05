@@ -39,16 +39,23 @@ function SortablePinnedCard({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        cursor: isDragging ? 'grabbing' : 'grab',
+        touchAction: 'none',
+      }}
       {...attributes}
       {...listeners}
       className={`group relative overflow-hidden rounded-2xl bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border shadow-sm transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/20 dark:hover:shadow-white/10 ${
         isVertical ? 'row-span-2' : ''
-      } ${isDragging ? 'opacity-80 shadow-2xl ring-2 ring-blue-500/50 cursor-grabbing' : 'cursor-grab'}`}
+      } ${isDragging ? 'opacity-80 shadow-2xl ring-2 ring-blue-500/50' : ''}`}
     >
       {/* Visibility Badge */}
       <button
-        onClick={() => onToggleVisibility(img)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleVisibility(img)
+        }}
         className="absolute top-2.5 left-2.5 z-20 p-1.5 rounded-lg bg-black/60 text-white shadow-md hover:bg-black/85 transition-all duration-200 hover:scale-105 active:scale-95 opacity-0 group-hover:opacity-100 cursor-pointer"
         title={img.visibility === 'public' ? 'Public Image (Click to make Private)' : 'Private Image (Click to make Public)'}
       >
@@ -68,7 +75,10 @@ function SortablePinnedCard({
       <div className="absolute top-2.5 right-2.5 z-20 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         {/* Rename pencil icon */}
         <button
-          onClick={() => onOpenEdit(img)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenEdit(img)
+          }}
           className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors shadow-md cursor-pointer"
           title="Edit name"
         >
@@ -78,7 +88,10 @@ function SortablePinnedCard({
         </button>
         {/* Unpin button (Love Icon) */}
         <button
-          onClick={() => onTogglePin(img)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onTogglePin(img)
+          }}
           className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-red-500 transition-colors shadow-md cursor-pointer"
           title="Unpin image"
         >
@@ -88,7 +101,10 @@ function SortablePinnedCard({
         </button>
         {/* Delete button */}
         <button
-          onClick={(e) => onDelete(e, img)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(e, img)
+          }}
           className="p-2 rounded-full bg-black/60 hover:bg-red-600 text-white transition-colors shadow-md cursor-pointer"
           title="Delete image (Shift+click to skip confirmation)"
         >
