@@ -3,7 +3,6 @@ import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-
 import {
   DndContext,
   closestCenter,
-  PointerSensor,
   MouseSensor,
   TouchSensor,
   KeyboardSensor,
@@ -196,7 +195,11 @@ function MyGallery() {
     )
 
     observer.observe(el)
-    return () => observer.disconnect()
+    
+    // Cleanup: disconnect observer when component unmounts or dependencies change
+    return () => {
+      observer.disconnect()
+    }
   }, [hasMore, loading, loadingMore, cursor])
 
   // Poll processing items status
@@ -237,7 +240,10 @@ function MyGallery() {
       )
     }, 2000)
 
-    return () => clearInterval(intervalId)
+    // CRITICAL: Cleanup interval on unmount or when dependencies change
+    return () => {
+      clearInterval(intervalId)
+    }
   }, [images, pinnedImages])
 
   if (authLoading) {

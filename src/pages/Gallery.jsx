@@ -99,7 +99,11 @@ function Gallery() {
     )
 
     observer.observe(el)
-    return () => observer.disconnect()
+    
+    // Cleanup: disconnect observer when component unmounts or dependencies change
+    return () => {
+      observer.disconnect()
+    }
   }, [hasMore, loading, loadingMore, cursor])
 
   if (authLoading) {
