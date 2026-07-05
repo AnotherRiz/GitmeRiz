@@ -4,6 +4,87 @@ Detailed explanations of the more involved features. For component props, see [C
 
 ---
 
+## Infinite Scroll Pagination
+
+**Where:** `Gallery.jsx` and `MyGallery.jsx`
+
+Both gallery pages use cursor-based pagination with infinite scroll to handle large datasets efficiently.
+
+### Cursor-Based Pagination
+
+The backend returns paginated responses with a cursor for the next page:
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [ /* GalleryItem[] */ ],
+    "next_cursor": 450,
+    "limit": 50
+  }
+}
+```
+
+- Results are ordered by `id DESC` (newest first)
+- `cursor` represents the ID of the last item on the current page
+- When `next_cursor` is `null`, there are no more pages
+
+### IntersectionObserver Implementation
+
+A sentinel element is placed at the bottom of the image grid:
+
+```jsx
+// Infinite scroll sentinel
+{hasMore && (
+  <div ref={sentinelRef} className="flex justify-center py-8">
+    {loadingMore && <LoadingSpinner />}
+  </div>
+)}
+```
+
+The observer triggers when the sentinel enters the viewport:
+
+```js
+useEffect(() => {
+  if (!hasMore || loading) return
+  
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting && !loadingMore && hasMore) {
+        loadNextPage()
+      }
+    },
+    { rootMargin: '200px' } // Trigger 200px before sentinel is visible
+  )
+
+  observer.observe(sentinelRef.current)
+  return () => observer.disconnect()
+}, [hasMore, loading, loadingMore, cursor])
+```
+
+### State Management
+
+Each page maintains:
+- `images`: Current list of items
+- `cursor`: Next page cursor from the last response  
+- `hasMore`: Whether more pages are available
+- `loading`: Initial page loading
+- `loadingMore`: Next page loading
+
+Items are appended using functional updates to avoid stale closures:
+
+```js
+setImages((prev) => isLoadMore ? [...prev, ...items] : items)
+```
+
+### MyGallery Specifics
+
+MyGallery has two separate data sources:
+- **Pinned images**: `GET /gallery/me/pinned` (no pagination, max 8 items)  
+- **Unpinned images**: `GET /gallery/me` with pagination (filtered to exclude pinned items)
+
+---
+
 ## Pinned Bento Grid
 
 **Where:** `MyGallery.jsx` + `SortablePinnedCard.jsx`
@@ -141,22 +222,31 @@ On open it issues a `HEAD` request to the **preview** URL (`/gallery/p/{short_id
 - **Pan:** grab-to-drag is enabled only when zoomed in (`scale > 1`). An anchor point (kept in a ref) computes the new position; movement is clamped to computed bounds so the image can't be dragged off-screen.
 - Cursor reflects state: `default` at 1×, `grab` when zoomed, `grabbing` while dragging.
 
-### Download (raw, auth-aware)
+### Download (via dedicated endpoint)
 
-A download button sits at the top of the zoom controls (above `+`). Because a plain `<a download>` won't send the auth header, it downloads via fetch:
+A download button sits at the top of the zoom controls (above `+`). Uses the dedicated download endpoint `GET /gallery/d/{id}` which serves images with `Content-Disposition: attachment` for proper filename handling.
 
+For **public images**, uses a direct link:
 ```js
-const res = await fetch(`${BASE_URL}/gallery/r/${shortId}`, {
-  method: 'GET', credentials: 'include',
-  headers: token ? { Authorization: `Bearer ${token}` } : {},
-})
-const blob = await res.blob()
-const url = URL.createObjectURL(blob)
-// create a temp <a>, click it, remove it, then URL.revokeObjectURL(url)
+const downloadUrl = `${BASE_URL}/gallery/d/${image.id}`
+const a = document.createElement('a')
+a.href = downloadUrl
+a.download = '' // Browser uses original filename from Content-Disposition
 ```
 
-- Filename is `${image.title}.${ext}` with the extension derived from the blob's MIME type.
-- Shows a spinner while downloading; cleans up the object URL afterward.
+For **private images**, downloads via authenticated fetch:
+```js
+const response = await fetch(downloadUrl, {
+  credentials: 'include',
+  headers: { Authorization: `Bearer ${token}` }
+})
+const blob = await response.blob()
+// Create temp <a> with object URL, click, cleanup
+```
+
+- Preserves the original filename from the server's `Content-Disposition` header
+- Shows a spinner while downloading; cleans up the object URL afterward
+- Respects image visibility (auth required for private images)
 
 ### Open/close & UX
 

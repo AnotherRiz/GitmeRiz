@@ -38,7 +38,7 @@ function EditNameModal({ isOpen, onClose, image, onSuccess }) {
     setUpdating(true)
     setError('')
 
-    const res = await api(`/gallery/${image.id}/title`, {
+    const res = await api(`/gallery/${image.id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

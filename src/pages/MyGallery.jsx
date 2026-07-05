@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
@@ -33,7 +33,11 @@ function MyGallery() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user, loading: authLoading } = useAuth()
   const [images, setImages] = useState([])
+  const [pinnedImages, setPinnedImages] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [cursor, setCursor] = useState(null)
+  const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState('')
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isUploadMinimized, setIsUploadMinimized] = useState(false)
@@ -47,6 +51,7 @@ function MyGallery() {
 
   // Pinned order from backend (pin_order field). User can drag-and-drop to reorder.
   const [pinnedOrder, setPinnedOrder] = useState([])
+  const sentinelRef = useRef(null)
 
   // Drag sensors. A small activation distance lets a plain click open the image
   // while an actual drag reorders the card.
@@ -69,15 +74,20 @@ function MyGallery() {
   const viewImageId = searchParams.get('view')
 
   useEffect(() => {
-    if (viewImageId && images.length > 0) {
-      const imageToView = images.find(img => getShortId(img) === viewImageId)
+    if (viewImageId && ((images && images.length > 0) || (pinnedImages && pinnedImages.length > 0))) {
+      // Ensure both are actually arrays before spreading
+      const safeImages = Array.isArray(images) ? images : []
+      const safePinnedImages = Array.isArray(pinnedImages) ? pinnedImages : []
+      
+      const allImages = [...safePinnedImages, ...safeImages]
+      const imageToView = allImages.find(img => getShortId(img) === viewImageId)
       if (imageToView) {
         setSelectedImage(imageToView)
       }
     } else {
       setSelectedImage(null)
     }
-  }, [viewImageId, images])
+  }, [viewImageId, images, pinnedImages])
 
   // Listen for reopen upload modal event
   useEffect(() => {
@@ -89,45 +99,106 @@ function MyGallery() {
     return () => window.removeEventListener('reopenUploadModal', handleReopenUpload)
   }, [])
 
-  // Load images
-  useEffect(() => {
-    if (authLoading || !user) return
-
-    async function fetchMyImages() {
+  // Fetch user's images with pagination
+  const fetchMyImages = async (isLoadMore = false) => {
+    if (isLoadMore) {
+      setLoadingMore(true)
+    } else {
       setLoading(true)
-      const res = await get('/gallery/me')
+      setImages([])
+      setCursor(null)
+      setHasMore(true)
+    }
+
+    try {
+      const params = new URLSearchParams()
+      if (cursor && isLoadMore) params.set('cursor', cursor)
+      params.set('limit', '50')
+      
+      const res = await get(`/gallery/me?${params.toString()}`)
+      
       if (res.ok) {
-        setImages(res.data)
+        const { items, next_cursor } = res.data
+        // Filter only unpinned images for the main gallery (pinned handled separately)
+        const unpinnedItems = items.filter(img => !img.pinned)
+        
+        setImages((prev) => isLoadMore ? [...prev, ...unpinnedItems] : unpinnedItems)
+        setCursor(next_cursor)
+        setHasMore(next_cursor !== null)
+        setError('')
       } else {
         setError(res.error || 'Failed to fetch your gallery images.')
       }
-      setLoading(false)
+    } catch (err) {
+      console.error('Error fetching images:', err)
+      setError('Network error. Please try again.')
+    } finally {
+      if (isLoadMore) {
+        setLoadingMore(false)
+      } else {
+        setLoading(false)
+      }
     }
+  }
 
-    fetchMyImages()
+  // Fetch pinned images separately
+  const fetchPinnedImages = async () => {
+    try {
+      const res = await get('/gallery/me/pinned')
+      if (res.ok) {
+        setPinnedImages(res.data)
+        // Update the pinned order based on pin_order from backend
+        const orderedIds = res.data
+          .sort((a, b) => (a.pin_order || 0) - (b.pin_order || 0))
+          .map(img => img.id)
+        setPinnedOrder(orderedIds)
+      }
+    } catch (err) {
+      console.error('Error fetching pinned images:', err)
+    }
+  }
+
+  const loadNextPage = () => {
+    if (!loadingMore && hasMore && cursor) {
+      fetchMyImages(true)
+    }
+  }
+
+  // Load images on mount
+  useEffect(() => {
+    if (authLoading || !user) return
+    fetchMyImages(false)
+    fetchPinnedImages()
   }, [authLoading, user])
 
-  // Keep the pinned order in sync with the pinned images.
-  // Backend persists the order via pin_order field. We seed our local state from it.
+  // Infinite scroll with IntersectionObserver  
   useEffect(() => {
-    if (!user) return
-    const pinned = images
-      .filter((img) => img.pinned && img.user_id === user.id)
-      .sort((a, b) => (a.pin_order || 0) - (b.pin_order || 0))
-      .map((img) => img.id)
+    if (!hasMore || loading) return
+    
+    const el = sentinelRef.current
+    if (!el) return
 
-    setPinnedOrder((prev) => {
-      // If backend order matches current local order, no update needed
-      if (pinned.length === prev.length && pinned.every((id, i) => id === prev[i])) {
-        return prev
-      }
-      return pinned
-    })
-  }, [images, user])
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loadingMore && hasMore) {
+          loadNextPage()
+        }
+      },
+      { rootMargin: '200px' }
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, loading, loadingMore, cursor])
 
   // Poll processing items status
   useEffect(() => {
-    const processingIds = images
+    // Ensure both arrays are actually arrays before spreading
+    const safeImages = Array.isArray(images) ? images : []
+    const safePinnedImages = Array.isArray(pinnedImages) ? pinnedImages : []
+    
+    const allImages = [...safePinnedImages, ...safeImages]
+    const processingIds = allImages
       .filter((img) => img.status === 'processing')
       .map((img) => img.id)
 
@@ -140,6 +211,15 @@ function MyGallery() {
       const statusMap = await fetchStatuses(processingIds)
       if (Object.keys(statusMap).length === 0) return // retry next tick
 
+      // Update both pinned and unpinned images with new statuses
+      setPinnedImages((prev) =>
+        prev.map((img) =>
+          statusMap[img.id] && statusMap[img.id] !== img.status
+            ? { ...img, status: statusMap[img.id] }
+            : img
+        )
+      )
+
       setImages((prev) =>
         prev.map((img) =>
           statusMap[img.id] && statusMap[img.id] !== img.status
@@ -150,7 +230,7 @@ function MyGallery() {
     }, 2000)
 
     return () => clearInterval(intervalId)
-  }, [images])
+  }, [images, pinnedImages])
 
   if (authLoading) {
     return (
@@ -180,6 +260,15 @@ function MyGallery() {
     )
   }
 
+  // Safety check: ensure arrays are initialized before filtering
+  if (!Array.isArray(images) || !Array.isArray(pinnedImages)) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <p className="opacity-60">Loading gallery...</p>
+      </div>
+    )
+  }
+
   // Open an image: update query param to show modal.
   // The URL becomes /:username/gallery?view={short_id}
   const handleOpenImage = (e, img) => {
@@ -195,12 +284,11 @@ function MyGallery() {
     setSelectedImage(null)
   }
 
-  // Filter pinned and unpinned images for the current user only
-  const myImages = images.filter((img) => img.user_id === user.id)
-  const unpinnedImages = myImages.filter((img) => !img.pinned)
+  // Filter unpinned images for the current user only (pinnedImages handled separately)
+  const unpinnedImages = (images || []).filter((img) => img.user_id === user.id)
+  
   // Sort pinned images by the session-local drag order
-  const pinnedImages = myImages
-    .filter((img) => img.pinned)
+  const sortedPinnedImages = (pinnedImages || [])
     .sort((a, b) => {
       const ia = pinnedOrder.indexOf(a.id)
       const ib = pinnedOrder.indexOf(b.id)
@@ -259,26 +347,40 @@ function MyGallery() {
   }
 
   const handleEditSuccess = (updatedImage) => {
-    setImages((prev) => prev.map((img) => (img.id === updatedImage.id ? updatedImage : img)))
+    if (updatedImage.pinned) {
+      setPinnedImages((prev) => prev.map((img) => (img.id === updatedImage.id ? updatedImage : img)))
+    } else {
+      setImages((prev) => prev.map((img) => (img.id === updatedImage.id ? updatedImage : img)))
+    }
   }
 
   const handleTogglePin = async (img) => {
     // Check if trying to pin (not unpin) and limit is reached
     if (!img.pinned) {
-      const pinnedCount = images.filter((i) => i.pinned).length
+      const pinnedCount = pinnedImages.length
       if (pinnedCount >= 8) {
         alert('You can pin up to 8 images. Unpin one first.')
         return
       }
     }
 
-    const res = await api(`/gallery/${img.id}/pinned`, {
+    const res = await api(`/gallery/${img.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ pinned: !img.pinned }),
     })
     if (res.ok) {
-      // Update the item in state with the server response
-      setImages((prev) => prev.map((it) => (it.id === img.id ? res.data : it)))
+      // Update the appropriate state based on pin status
+      if (res.data.pinned) {
+        // Moving from unpinned to pinned
+        setImages((prev) => prev.filter((it) => it.id !== img.id))
+        setPinnedImages((prev) => [...prev, res.data])
+        setPinnedOrder((prev) => [...prev, res.data.id])
+      } else {
+        // Moving from pinned to unpinned  
+        setPinnedImages((prev) => prev.filter((it) => it.id !== img.id))
+        setImages((prev) => [...prev, res.data])
+        setPinnedOrder((prev) => prev.filter((id) => id !== img.id))
+      }
     } else {
       alert(res.error || 'Failed to update pinned status.')
     }
@@ -289,8 +391,10 @@ function MyGallery() {
 
     const res = await api(`/gallery/${id}`, { method: 'DELETE' })
     if (res.ok) {
-      // Remove from images list
+      // Remove from both images lists
       setImages((prev) => prev.filter((img) => img.id !== id))
+      setPinnedImages((prev) => prev.filter((img) => img.id !== id))
+      setPinnedOrder((prev) => prev.filter((imgId) => imgId !== id))
     } else {
       alert(res.error || 'Failed to delete image.')
     }
@@ -303,12 +407,17 @@ function MyGallery() {
 
   const handleToggleVisibility = async (img) => {
     const nextVisibility = img.visibility === 'public' ? 'private' : 'public'
-    const res = await api(`/gallery/${img.id}/visibility`, {
+    const res = await api(`/gallery/${img.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ visibility: nextVisibility }),
     })
     if (res.ok) {
-      setImages((prev) => prev.map((item) => (item.id === img.id ? res.data : item)))
+      // Update the appropriate state based on pin status
+      if (img.pinned) {
+        setPinnedImages((prev) => prev.map((item) => (item.id === img.id ? res.data : item)))
+      } else {
+        setImages((prev) => prev.map((item) => (item.id === img.id ? res.data : item)))
+      }
     } else {
       alert(res.error || 'Failed to update visibility.')
     }
@@ -316,19 +425,35 @@ function MyGallery() {
 
   const handleReprocess = async (img) => {
     // Optimistically set to processing so the polling effect starts
-    setImages((prev) =>
-      prev.map((it) => (it.id === img.id ? { ...it, status: 'processing' } : it))
-    )
+    if (img.pinned) {
+      setPinnedImages((prev) =>
+        prev.map((it) => (it.id === img.id ? { ...it, status: 'processing' } : it))
+      )
+    } else {
+      setImages((prev) =>
+        prev.map((it) => (it.id === img.id ? { ...it, status: 'processing' } : it))
+      )
+    }
 
     const res = await post(`/gallery/${img.id}/reprocess`, {})
     if (res.ok && res.data) {
       // Server returns the updated item (may already be active)
-      setImages((prev) => prev.map((it) => (it.id === img.id ? res.data : it)))
+      if (img.pinned) {
+        setPinnedImages((prev) => prev.map((it) => (it.id === img.id ? res.data : it)))
+      } else {
+        setImages((prev) => prev.map((it) => (it.id === img.id ? res.data : it)))
+      }
     } else {
       // Revert to failed on error
-      setImages((prev) =>
-        prev.map((it) => (it.id === img.id ? { ...it, status: 'failed_processing' } : it))
-      )
+      if (img.pinned) {
+        setPinnedImages((prev) =>
+          prev.map((it) => (it.id === img.id ? { ...it, status: 'failed_processing' } : it))
+        )
+      } else {
+        setImages((prev) =>
+          prev.map((it) => (it.id === img.id ? { ...it, status: 'failed_processing' } : it))
+        )
+      }
       alert(res.error || 'Failed to retry processing.')
     }
   }
@@ -378,9 +503,9 @@ function MyGallery() {
             modifiers={[restrictToParentElement]}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={pinnedImages.map((img) => img.id)} strategy={rectSortingStrategy}>
+            <SortableContext items={sortedPinnedImages.map((img) => img.id)} strategy={rectSortingStrategy}>
               <div className="grid grid-flow-row-dense grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 auto-rows-[11rem] gap-4">
-                {pinnedImages.map((img) => (
+                {sortedPinnedImages.map((img) => (
                   <SortablePinnedCard
                     key={img.id}
                     img={img}
@@ -541,6 +666,20 @@ function MyGallery() {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* Infinite scroll sentinel and loading spinner */}
+        {hasMore && (
+          <div ref={sentinelRef} className="flex justify-center py-8">
+            {loadingMore && (
+              <div className="flex items-center gap-2 text-neutral-500">
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span className="text-sm">Loading more images...</span>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -61,3 +61,10 @@ export function get(endpoint) {
     method: 'GET',
   })
 }
+
+/**
+ * Get signed URL for a private image
+ */
+export function getSignedUrl(shortId) {
+  return post(`/gallery/${shortId}/sign`, {})
+}

@@ -71,12 +71,14 @@ Displays the logged-in user's account details.
 
 Public gallery of all images with `visibility: public`.
 
-- Fetches `GET /gallery/public`.
-- If the current user is a **superuser**, also fetches `GET /users` to map `user_id` → uploader name.
-- Masonry layout using CSS columns (`columns-1 sm:columns-2 md:columns-3 lg:columns-4`).
-- Each card shows a visibility badge, thumbnail (`/gallery/t/{short_id}`), title, and uploader name.
-- Clicking a card opens `ImageModal`.
-- Loading skeletons and an empty state are provided.
+- **Infinite scroll pagination**: Fetches `GET /gallery/public` with cursor-based pagination (50 items per page).
+- **Auto-loading**: Uses `IntersectionObserver` to detect when user scrolls near the bottom and loads the next page automatically.
+- **User mapping**: If the current user is a **superuser**, also fetches `GET /users` to map `user_id` → uploader name.
+- **Masonry layout**: CSS columns (`columns-1 sm:columns-2 md:columns-3 lg:columns-4`) with responsive breakpoints.
+- **Image cards**: Show visibility badge, thumbnail (`/gallery/t/{short_id}`), title, and uploader name.
+- **Image modal**: Clicking a card opens `ImageModal` with the preview image.
+- **Loading states**: Initial skeleton loading and "Loading more..." spinner at the bottom during pagination.
+- **Empty state**: Shown when no public images are available.
 
 ---
 
@@ -91,24 +93,31 @@ The user's private workspace for managing their uploads. This is the most featur
 - Loader while auth resolves; redirect to `/login` if unauthenticated.
 - **Owner check:** if the `:username` param ≠ the logged-in user's username, a "Forbidden" screen is shown with a button back to the user's own gallery.
 
+### Data Sources
+
+- **Pinned images**: `GET /gallery/me/pinned` (dedicated endpoint, max 8 items, ordered by `pin_order`)
+- **Unpinned images**: `GET /gallery/me` with cursor-based pagination, filtered to exclude pinned items
+
 ### Sections
 
 1. **Pinned (Bento grid)** — up to 8 pinned images in a responsive grid; vertical images span two rows; drag-and-drop reordering persisted to the backend. See [Features → Pinned Bento Grid](./features.md#pinned-bento-grid).
-2. **Images (masonry)** — all unpinned images in a CSS-columns masonry layout with hover actions.
+2. **Images (masonry with infinite scroll)** — unpinned images in a CSS-columns masonry layout with infinite scroll loading.
 
-### Data & actions
+### Per-item actions
 
-- Loads `GET /gallery/me`; filters to the current user's items and splits into pinned/unpinned.
-- Per-item actions:
-  - **Pin/unpin** → `PATCH /gallery/{id}/pinned` (enforces the 8-pin limit client-side).
-  - **Reorder pins** → `PATCH /gallery/reorder-pins` (drag-and-drop).
-  - **Rename** → opens `EditNameModal` (`PATCH /gallery/{id}/title`).
-  - **Toggle visibility** → `PATCH /gallery/{id}/visibility`.
-  - **Delete** → `DELETE /gallery/{id}` (with confirm).
-  - **Retry processing** → `POST /gallery/{id}/reprocess` for failed items.
-- **Upload** via `UploadModal`, which can be minimized to continue in the background.
-- **Image viewing** via a `?view={short_id}` query param that drives `ImageModal`.
-- **Status polling** for items in `processing` state (see [Features](./features.md#background-upload-processing--status-polling)).
+- **Pin/unpin** → `PATCH /gallery/{id}` with `{ pinned: true/false }` (enforces the 8-pin limit client-side).
+- **Reorder pins** → `PATCH /gallery/reorder-pins` (drag-and-drop).
+- **Rename** → opens `EditNameModal` (`PATCH /gallery/{id}` with `{ title }` via unified endpoint).
+- **Toggle visibility** → `PATCH /gallery/{id}` with `{ visibility }` via unified endpoint.
+- **Delete** → `DELETE /gallery/{id}` (with confirmation).
+- **Retry processing** → `POST /gallery/{id}/reprocess` for failed items.
+
+### Other features
+
+- **Upload**: `UploadModal` can be minimized to continue in the background.
+- **Image viewing**: `?view={short_id}` query param drives `ImageModal`.
+- **Status polling**: Monitors items in `processing` state across both pinned and unpinned lists.
+- **Infinite scroll**: Loads more unpinned images as user scrolls down.
 
 ### URL-driven modal
 

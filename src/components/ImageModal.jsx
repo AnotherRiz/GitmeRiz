@@ -260,14 +260,28 @@ function ImageModal({ image, onClose }) {
     
     setDownloading(true)
     try {
-      const rawUrl = `${BASE_URL}/gallery/r/${shortId}`
+      // Try the new download endpoint first (preserves original filename)
+      const downloadUrl = `${BASE_URL}/gallery/d/${image.id}`
+      
+      if (image.visibility === 'public') {
+        // For public images, use direct link
+        const a = document.createElement('a')
+        a.href = downloadUrl
+        a.download = '' // Browser will use original filename from Content-Disposition
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        return
+      }
+      
+      // For private images, use authenticated fetch to respect visibility
       const token = localStorage.getItem('token')
       const headers = {}
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
       }
 
-      const response = await fetch(rawUrl, {
+      const response = await fetch(downloadUrl, {
         method: 'GET',
         credentials: 'include',
         headers,
@@ -282,10 +296,16 @@ function ImageModal({ image, onClose }) {
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       
-      // Derive extension from MIME type or default to jpg
-      const mimeType = blob.type || 'image/jpeg'
-      const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg'
-      const fileName = `${image.title || 'image'}.${ext}`
+      // Get filename from Content-Disposition header or use fallback
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let fileName = `${image.title || 'image'}.jpg`
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+        if (filenameMatch && filenameMatch[1]) {
+          fileName = filenameMatch[1].replace(/['"]/g, '')
+        }
+      }
       
       // Create temporary link and trigger download
       const a = document.createElement('a')

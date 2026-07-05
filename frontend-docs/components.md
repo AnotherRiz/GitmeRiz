@@ -72,21 +72,34 @@ Avatar button showing the user's initials, opening a menu with name, email, and 
 
 **File:** `SecureImage.jsx`
 
-Fetches an image **with the auth header** and renders it from a blob URL. Use when an image endpoint requires authorization on the request itself.
+Enhanced image component that intelligently handles both public and private images with optimal loading strategies.
 
 **Props:**
 
 | Prop | Type | Description |
 | --- | --- | --- |
-| `src` | `string` | Absolute URL, or a path appended to `BASE_URL` |
-| `alt` | `string` | Alt text |
-| `className` | `string` | Passed to the `<img>` / placeholders |
+| `src` | `string` (optional) | Direct image URL (fallback mode) |
+| `alt` | `string` | Alt text for accessibility |
+| `className` | `string` | CSS classes |
+| `image` | `object` (optional) | Gallery image object with `visibility`, `short_id` |
+| `variant` | `string` (optional) | Image size variant (`'t'` for thumbnail, `'p'` for preview, `'r'` for raw). Default: `'t'` |
 
-Behavior:
+**Features:**
+- **Public images**: Uses direct URLs (`/gallery/{variant}/{short_id}`) for better browser caching
+- **Private images**: Automatically requests signed URLs via `POST /gallery/{short_id}/sign`
+- **Signature retry**: If image fails to load and it was signed, retries once (handles expired signatures)
+- **Fallback support**: Falls back to authenticated blob method when no image object provided
+- **Loading/error states**: Shows skeleton loader and error UI
+- **Memory management**: Properly cleans up blob URLs to prevent leaks
 
-- Adds `Authorization: Bearer <token>` from `localStorage`, fetches as a blob, and creates an object URL.
-- Shows an animated skeleton while loading and a friendly error box on failure.
-- Revokes the object URL on cleanup to avoid leaks.
+**Usage:**
+```jsx
+// Intelligent mode (recommended)
+<SecureImage image={galleryItem} variant="t" alt={galleryItem.title} />
+
+// Fallback mode (backward compatibility)  
+<SecureImage src="/gallery/t/abc123" alt="Image" />
+```
 
 ---
 
@@ -109,7 +122,7 @@ Behavior:
 
 - Pre-fills the input with `image.title` on open.
 - Validates non-empty title; Save is disabled if unchanged or empty.
-- Submits `PATCH /gallery/{id}/title`.
+- Submits `PATCH /gallery/{id}` with `{ title }` using the unified update endpoint.
 - Closes on Esc (when not saving) and on backdrop click.
 
 ---
