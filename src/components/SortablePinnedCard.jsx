@@ -111,9 +111,12 @@ function SortablePinnedCard({
       </div>
 
       {/* Image display - different UI based on status */}
-      <div className="w-full h-full min-h-[11rem] bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+      <div 
+        className="w-full h-full min-h-[11rem] bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center cursor-pointer"
+        onClick={(e) => onOpenImage(e, img)}
+      >
         {img.status === 'processing' ? (
-          <div className="w-full h-full flex flex-col items-center justify-center text-neutral-400">
+          <div className="w-full h-full flex flex-col items-center justify-center text-neutral-400 pointer-events-none">
             <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -122,9 +125,12 @@ function SortablePinnedCard({
           </div>
         ) : img.status === 'failed_processing' ? (
           <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/10 text-red-500 gap-2 p-3 text-center">
-            <span className="text-xs font-semibold">Processing failed</span>
+            <span className="text-xs font-semibold pointer-events-none">Processing failed</span>
             <button
-              onClick={() => onReprocess(img)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onReprocess(img)
+              }}
               className="relative z-20 px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors cursor-pointer"
             >
               Retry
@@ -136,8 +142,7 @@ function SortablePinnedCard({
             alt={img.title}
             loading="lazy"
             onLoad={(e) => onImageLoad(e, img.id)}
-            onClick={(e) => onOpenImage(e, img)}
-            className="w-full h-full object-cover select-none"
+            className="w-full h-full object-cover select-none pointer-events-none"
           />
         )}
       </div>
