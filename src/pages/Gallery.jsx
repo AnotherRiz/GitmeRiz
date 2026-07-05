@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { get } from '../lib/api'
 import ImageModal from '../components/ImageModal'
@@ -10,22 +10,60 @@ function Gallery() {
   const [images, setImages] = useState([])
   const [usersMap, setUsersMap] = useState({})
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [cursor, setCursor] = useState(null)
+  const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState('')
   const [selectedImage, setSelectedImage] = useState(null)
+  const sentinelRef = useRef(null)
 
-  useEffect(() => {
-    if (authLoading) return
-
-    async function fetchImages() {
+  const fetchImages = async (isLoadMore = false) => {
+    if (isLoadMore) {
+      setLoadingMore(true)
+    } else {
       setLoading(true)
-      const res = await get('/gallery/public')
+      setImages([])
+      setCursor(null)
+      setHasMore(true)
+    }
+
+    try {
+      const params = new URLSearchParams()
+      if (cursor && isLoadMore) params.set('cursor', cursor)
+      params.set('limit', '50')
+      
+      const res = await get(`/gallery/public?${params.toString()}`)
+      
       if (res.ok) {
-        setImages(res.data)
+        const { items, next_cursor } = res.data
+        
+        setImages((prev) => isLoadMore ? [...prev, ...items] : items)
+        setCursor(next_cursor)
+        setHasMore(next_cursor !== null)
+        setError('')
       } else {
         setError(res.error || 'Failed to fetch gallery images.')
       }
-      setLoading(false)
+    } catch (err) {
+      console.error('Error fetching images:', err)
+      setError('Network error. Please try again.')
+    } finally {
+      if (isLoadMore) {
+        setLoadingMore(false)
+      } else {
+        setLoading(false)
+      }
     }
+  }
+
+  const loadNextPage = () => {
+    if (!loadingMore && hasMore && cursor) {
+      fetchImages(true)
+    }
+  }
+
+  useEffect(() => {
+    if (authLoading) return
 
     async function fetchUsers() {
       if (user && user.role === 'superuser') {
@@ -40,9 +78,29 @@ function Gallery() {
       }
     }
 
-    fetchImages()
+    fetchImages(false)
     fetchUsers()
   }, [authLoading, user])
+
+  // Infinite scroll with IntersectionObserver
+  useEffect(() => {
+    if (!hasMore || loading) return
+    
+    const el = sentinelRef.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loadingMore && hasMore) {
+          loadNextPage()
+        }
+      },
+      { rootMargin: '200px' }
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, loading, loadingMore, cursor])
 
   if (authLoading) {
     return (
@@ -136,6 +194,20 @@ function Gallery() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Infinite scroll sentinel and loading spinner */}
+      {hasMore && (
+        <div ref={sentinelRef} className="flex justify-center py-8">
+          {loadingMore && (
+            <div className="flex items-center gap-2 text-neutral-500">
+              <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="text-sm">Loading more images...</span>
+            </div>
+          )}
         </div>
       )}
 
