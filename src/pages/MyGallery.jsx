@@ -75,7 +75,11 @@ function MyGallery() {
 
   useEffect(() => {
     if (viewImageId && ((images && images.length > 0) || (pinnedImages && pinnedImages.length > 0))) {
-      const allImages = [...(pinnedImages || []), ...(images || [])]
+      // Ensure both are actually arrays before spreading
+      const safeImages = Array.isArray(images) ? images : []
+      const safePinnedImages = Array.isArray(pinnedImages) ? pinnedImages : []
+      
+      const allImages = [...safePinnedImages, ...safeImages]
       const imageToView = allImages.find(img => getShortId(img) === viewImageId)
       if (imageToView) {
         setSelectedImage(imageToView)
@@ -160,24 +164,6 @@ function MyGallery() {
     }
   }
 
-  // Load images
-  useEffect(() => {
-    if (authLoading || !user) return
-
-    async function fetchMyImages() {
-      setLoading(true)
-      const res = await get('/gallery/me')
-      if (res.ok) {
-        setImages(res.data)
-      } else {
-        setError(res.error || 'Failed to fetch your gallery images.')
-      }
-      setLoading(false)
-    }
-
-    fetchMyImages()
-  }, [authLoading, user])
-
   // Load images on mount
   useEffect(() => {
     if (authLoading || !user) return
@@ -207,7 +193,11 @@ function MyGallery() {
 
   // Poll processing items status
   useEffect(() => {
-    const allImages = [...(pinnedImages || []), ...(images || [])]
+    // Ensure both arrays are actually arrays before spreading
+    const safeImages = Array.isArray(images) ? images : []
+    const safePinnedImages = Array.isArray(pinnedImages) ? pinnedImages : []
+    
+    const allImages = [...safePinnedImages, ...safeImages]
     const processingIds = allImages
       .filter((img) => img.status === 'processing')
       .map((img) => img.id)
