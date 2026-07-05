@@ -4,6 +4,8 @@ import {
   DndContext,
   closestCenter,
   PointerSensor,
+  MouseSensor,
+  TouchSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -58,10 +60,12 @@ function MyGallery() {
   const [pinnedOrder, setPinnedOrder] = useState([])
   const sentinelRef = useRef(null)
 
-  // Drag sensors: use PointerSensor for both desktop and mobile
-  // Distance activation prevents accidental drags and allows clicks/taps to work
+  // Drag sensors: separate for desktop and mobile
+  // Desktop (MouseSensor): 8px distance activation for click vs drag distinction
+  // Mobile (TouchSensor): 250ms delay to allow scrolling, small tolerance
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 

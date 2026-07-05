@@ -42,7 +42,6 @@ function SortablePinnedCard({
       style={{
         ...style,
         cursor: isDragging ? 'grabbing' : 'grab',
-        touchAction: 'none',
       }}
       {...attributes}
       {...listeners}
@@ -149,7 +148,7 @@ function SortablePinnedCard({
               e.stopPropagation()
               onOpenImage(e, img)
             }}
-            className="w-full h-full object-cover select-none cursor-pointer"
+            className="w-full h-full object-cover select-none"
           />
         )}
       </div>
