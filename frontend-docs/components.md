@@ -175,6 +175,61 @@ Highlights (see [Features](./features.md#image-viewer-imagemodal)):
 
 ---
 
+## ConfirmModal
+
+**File:** `ConfirmModal.jsx`
+
+Reusable modal dialog for confirmations and alerts with clean animations and keyboard support.
+
+**Props:**
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `isOpen` | `boolean` | Controls visibility |
+| `onClose` | `() => void` | Close handler |
+| `onConfirm` | `() => void` (optional) | Confirm handler; if omitted, modal acts as an alert (single button) |
+| `title` | `string` | Modal title |
+| `message` | `string` | Modal body text |
+| `tip` | `string` (optional) | Optional tip text in smaller gray font |
+| `confirmText` | `string` | Confirm button text (default: "Confirm") |
+| `cancelText` | `string` | Cancel button text (default: "Cancel") |
+| `variant` | `'default' \| 'danger'` | Button style variant (default: "default") |
+
+**Features:**
+- **Two modes**: Confirmation (two buttons) when `onConfirm` is provided, or Alert (single "Got it" button) when omitted
+- **Keyboard support**: Esc to close, Enter to confirm (when applicable)
+- **Animations**: Smooth fade + scale transitions (300ms) using opacity and transform
+- **Backdrop click**: Closes on clicking outside the modal
+- **Visual variants**: `default` (indigo) or `danger` (red) button styling
+- **Auto-focus**: Confirm button is focused when modal opens
+
+**Usage:**
+```jsx
+// Confirmation dialog
+<ConfirmModal
+  isOpen={isDeleteConfirmOpen}
+  onClose={() => setIsDeleteConfirmOpen(false)}
+  onConfirm={handleConfirmDelete}
+  title="Delete Image"
+  message={`Delete "${image.title}"?`}
+  tip="Tip: Hold Shift while clicking delete to skip this confirmation."
+  confirmText="Delete"
+  cancelText="Cancel"
+  variant="danger"
+/>
+
+// Alert dialog
+<ConfirmModal
+  isOpen={!!errorMessage}
+  onClose={() => setErrorMessage(null)}
+  title="Operation Failed"
+  message={errorMessage}
+  variant="default"
+/>
+```
+
+---
+
 ## SortablePinnedCard
 
 **File:** `SortablePinnedCard.jsx`
@@ -191,14 +246,17 @@ A single draggable card in the pinned Bento grid on `MyGallery`.
 | `onToggleVisibility` | `(img) => void` | Toggle public/private |
 | `onOpenEdit` | `(img) => void` | Open the rename modal |
 | `onTogglePin` | `(img) => void` | Unpin |
+| `onDelete` | `(e, img) => void` | Delete with Shift+click skip support |
 | `onOpenImage` | `(e, img) => void` | Open the image viewer |
 | `onReprocess` | `(img) => void` | Retry failed processing |
 | `onImageLoad` | `(e, id) => void` | Reports natural dimensions for orientation detection |
 
 Behavior:
 
-- Uses `useSortable` from `@dnd-kit/sortable`; drag listeners live on the root.
-- A 6px activation distance (configured on the parent sensor) lets a plain click open the image while a drag reorders.
-- `cursor-grab` by default, `cursor-grabbing` while dragging.
+- Uses `useSortable` from `@dnd-kit/sortable`; drag listeners are attached to a dedicated handle (`setActivatorNodeRef`).
+- **Drag Handle**: A hamburger icon (three horizontal lines) appears on hover at the top-left corner. Only this handle initiates drag operations.
+- **Desktop**: MouseSensor with 6px activation distance allows quick drag from handle; plain clicks anywhere on card still open the image.
+- **Mobile**: TouchSensor with 0ms delay and 5px tolerance; drag only from handle, rest of card remains scrollable and tappable.
+- Visual feedback: Handle shows `cursor-grab` idle and `cursor-grabbing` when active.
 - Hover reveals a bottom gradient with the title sliding up; hover also scales the card slightly.
 - Renders processing spinner / failed-retry / active image based on `img.status`.

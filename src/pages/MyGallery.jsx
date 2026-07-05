@@ -4,6 +4,7 @@ import {
   DndContext,
   closestCenter,
   PointerSensor,
+  MouseSensor,
   TouchSensor,
   KeyboardSensor,
   useSensor,
@@ -24,6 +25,7 @@ import UploadModal from '../components/UploadModal'
 import EditNameModal from '../components/EditNameModal'
 import ImageModal from '../components/ImageModal'
 import SortablePinnedCard from '../components/SortablePinnedCard'
+import ConfirmModal from '../components/ConfirmModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
@@ -45,6 +47,11 @@ function MyGallery() {
   const [editImage, setEditImage] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
   
+  // Modal states for confirmations and alerts
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [alertState, setAlertState] = useState(null) // { title, message }
+  const [pinLimitModalOpen, setPinLimitModalOpen] = useState(false)
+  
   // Track orientation (portrait/landscape) for Bento grid spanning
   // Map of { imageId: isVertical }
   const [imageOrientation, setImageOrientation] = useState({})
@@ -53,11 +60,12 @@ function MyGallery() {
   const [pinnedOrder, setPinnedOrder] = useState([])
   const sentinelRef = useRef(null)
 
-  // Drag sensors. A small activation distance lets a plain click open the image
-  // while an actual drag reorders the card.
+  // Drag sensors: separate for desktop and mobile
+  // Desktop (MouseSensor): 8px distance activation for click vs drag distinction
+  // Mobile (TouchSensor): 250ms delay to allow scrolling, small tolerance
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
@@ -297,6 +305,11 @@ function MyGallery() {
       return ia - ib
     })
 
+  // Helper: show alert modal with custom title and message
+  const showAlert = (title, message) => {
+    setAlertState({ title, message })
+  }
+
   // Reorder pinned images on drag end (persisted to backend).
   const handleDragEnd = async (event) => {
     const { active, over } = event
@@ -317,7 +330,7 @@ function MyGallery() {
     if (!res.ok) {
       // Revert on error
       setPinnedOrder(pinnedOrder)
-      alert(res.error || 'Failed to save pinned order.')
+      showAlert('Reorder Failed', res.error || 'Failed to save pinned order.')
     }
   }
 
@@ -359,7 +372,7 @@ function MyGallery() {
     if (!img.pinned) {
       const pinnedCount = pinnedImages.length
       if (pinnedCount >= 8) {
-        alert('You can pin up to 8 images. Unpin one first.')
+        setPinLimitModalOpen(true)
         return
       }
     }
@@ -382,21 +395,36 @@ function MyGallery() {
         setPinnedOrder((prev) => prev.filter((id) => id !== img.id))
       }
     } else {
-      alert(res.error || 'Failed to update pinned status.')
+      showAlert('Pin Failed', res.error || 'Failed to update pinned status.')
     }
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this image?')) return
+  // Handle delete click: check for Shift key to skip confirmation
+  const handleDeleteClick = (e, img) => {
+    e.stopPropagation()
+    
+    // Shift+click skips confirmation
+    if (e.shiftKey) {
+      performDelete(img.id)
+    } else {
+      setDeleteTarget(img)
+    }
+  }
 
+  // Perform the actual delete operation
+  const performDelete = async (id) => {
     const res = await api(`/gallery/${id}`, { method: 'DELETE' })
     if (res.ok) {
       // Remove from both images lists
       setImages((prev) => prev.filter((img) => img.id !== id))
       setPinnedImages((prev) => prev.filter((img) => img.id !== id))
       setPinnedOrder((prev) => prev.filter((imgId) => imgId !== id))
+      
+      // Close modal if needed
+      setDeleteTarget(null)
     } else {
-      alert(res.error || 'Failed to delete image.')
+      showAlert('Delete Failed', res.error || 'Failed to delete image.')
+      setDeleteTarget(null)
     }
   }
 
@@ -419,7 +447,7 @@ function MyGallery() {
         setImages((prev) => prev.map((item) => (item.id === img.id ? res.data : item)))
       }
     } else {
-      alert(res.error || 'Failed to update visibility.')
+      showAlert('Visibility Update Failed', res.error || 'Failed to update visibility.')
     }
   }
 
@@ -454,7 +482,7 @@ function MyGallery() {
           prev.map((it) => (it.id === img.id ? { ...it, status: 'failed_processing' } : it))
         )
       }
-      alert(res.error || 'Failed to retry processing.')
+      showAlert('Reprocess Failed', res.error || 'Failed to retry processing.')
     }
   }
 
@@ -514,6 +542,7 @@ function MyGallery() {
                     onToggleVisibility={handleToggleVisibility}
                     onOpenEdit={handleOpenEdit}
                     onTogglePin={handleTogglePin}
+                    onDelete={handleDeleteClick}
                     onOpenImage={handleOpenImage}
                     onReprocess={handleReprocess}
                     onImageLoad={handleImageLoad}
@@ -607,9 +636,9 @@ function MyGallery() {
                     </button>
                     {/* Delete button */}
                     <button
-                      onClick={() => handleDelete(img.id)}
+                      onClick={(e) => handleDeleteClick(e, img)}
                       className="p-2 rounded-full bg-black/60 hover:bg-red-600 text-white hover:text-white transition-colors shadow-md"
-                      title="Delete image"
+                      title="Delete image (Shift+click to skip confirmation)"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -711,6 +740,37 @@ function MyGallery() {
           onClose={handleCloseModal}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => performDelete(deleteTarget?.id)}
+        title="Delete Image"
+        message={deleteTarget ? `Delete "${deleteTarget.title}"?` : ''}
+        tip="Tip: Hold Shift while clicking delete to skip this confirmation."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
+
+      {/* Alert Modal (generic) */}
+      <ConfirmModal
+        isOpen={!!alertState}
+        onClose={() => setAlertState(null)}
+        title={alertState?.title || 'Alert'}
+        message={alertState?.message || ''}
+        variant="default"
+      />
+
+      {/* Pin Limit Modal */}
+      <ConfirmModal
+        isOpen={pinLimitModalOpen}
+        onClose={() => setPinLimitModalOpen(false)}
+        title="Pin Limit Reached"
+        message="You can pin up to 8 images. Unpin one first to add more."
+        variant="default"
+      />
     </div>
   )
 }

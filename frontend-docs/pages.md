@@ -105,12 +105,21 @@ The user's private workspace for managing their uploads. This is the most featur
 
 ### Per-item actions
 
-- **Pin/unpin** → `PATCH /gallery/{id}` with `{ pinned: true/false }` (enforces the 8-pin limit client-side).
-- **Reorder pins** → `PATCH /gallery/reorder-pins` (drag-and-drop).
+- **Pin/unpin** → `PATCH /gallery/{id}` with `{ pinned: true/false }` (enforces the 8-pin limit client-side with modal feedback).
+- **Reorder pins** → `PATCH /gallery/reorder-pins` (drag-and-drop via dedicated drag handle that appears on hover).
 - **Rename** → opens `EditNameModal` (`PATCH /gallery/{id}` with `{ title }` via unified endpoint).
 - **Toggle visibility** → `PATCH /gallery/{id}` with `{ visibility }` via unified endpoint.
-- **Delete** → `DELETE /gallery/{id}` (with confirmation).
+- **Delete** → `DELETE /gallery/{id}` with `ConfirmModal`; **Shift+click skips confirmation** for power users.
 - **Retry processing** → `POST /gallery/{id}/reprocess` for failed items.
+
+### Modal dialogs
+
+All user-facing alerts and confirmations use `ConfirmModal` instead of browser alerts for a consistent, branded experience:
+
+- **Delete confirmation**: Shows image title and provides Shift+click skip tip
+- **Pin limit**: Friendly message when trying to pin beyond 8 images
+- **Generic alerts**: Operation failures (delete, pin, visibility, reprocess, reorder) with descriptive titles and messages
+- **Download errors**: In `ImageModal`, download failures show modal alerts instead of browser alerts
 
 ### Other features
 

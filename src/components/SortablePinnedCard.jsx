@@ -13,6 +13,7 @@ function SortablePinnedCard({
   onToggleVisibility,
   onOpenEdit,
   onTogglePin,
+  onDelete,
   onOpenImage,
   onReprocess,
   onImageLoad,
@@ -38,16 +39,22 @@ function SortablePinnedCard({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        cursor: isDragging ? 'grabbing' : 'grab',
+      }}
       {...attributes}
       {...listeners}
-      className={`group relative overflow-hidden rounded-2xl bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border shadow-sm touch-none transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/20 dark:hover:shadow-white/10 ${
+      className={`group relative overflow-hidden rounded-2xl bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border shadow-sm transition-all duration-500 ease-out hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/20 dark:hover:shadow-white/10 ${
         isVertical ? 'row-span-2' : ''
-      } ${isDragging ? 'opacity-80 shadow-2xl ring-2 ring-blue-500/50 cursor-grabbing' : 'cursor-grab'}`}
+      } ${isDragging ? 'opacity-80 shadow-2xl ring-2 ring-blue-500/50' : ''}`}
     >
       {/* Visibility Badge */}
       <button
-        onClick={() => onToggleVisibility(img)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleVisibility(img)
+        }}
         className="absolute top-2.5 left-2.5 z-20 p-1.5 rounded-lg bg-black/60 text-white shadow-md hover:bg-black/85 transition-all duration-200 hover:scale-105 active:scale-95 opacity-0 group-hover:opacity-100 cursor-pointer"
         title={img.visibility === 'public' ? 'Public Image (Click to make Private)' : 'Private Image (Click to make Public)'}
       >
@@ -67,7 +74,10 @@ function SortablePinnedCard({
       <div className="absolute top-2.5 right-2.5 z-20 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         {/* Rename pencil icon */}
         <button
-          onClick={() => onOpenEdit(img)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenEdit(img)
+          }}
           className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors shadow-md cursor-pointer"
           title="Edit name"
         >
@@ -77,7 +87,10 @@ function SortablePinnedCard({
         </button>
         {/* Unpin button (Love Icon) */}
         <button
-          onClick={() => onTogglePin(img)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onTogglePin(img)
+          }}
           className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-red-500 transition-colors shadow-md cursor-pointer"
           title="Unpin image"
         >
@@ -85,10 +98,25 @@ function SortablePinnedCard({
             <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
           </svg>
         </button>
+        {/* Delete button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(e, img)
+          }}
+          className="p-2 rounded-full bg-black/60 hover:bg-red-600 text-white transition-colors shadow-md cursor-pointer"
+          title="Delete image (Shift+click to skip confirmation)"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
       </div>
 
       {/* Image display - different UI based on status */}
-      <div className="w-full h-full min-h-[11rem] bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+      <div 
+        className="w-full h-full min-h-[11rem] bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center"
+      >
         {img.status === 'processing' ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-neutral-400">
             <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -101,7 +129,10 @@ function SortablePinnedCard({
           <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/10 text-red-500 gap-2 p-3 text-center">
             <span className="text-xs font-semibold">Processing failed</span>
             <button
-              onClick={() => onReprocess(img)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onReprocess(img)
+              }}
               className="relative z-20 px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors cursor-pointer"
             >
               Retry
@@ -113,7 +144,10 @@ function SortablePinnedCard({
             alt={img.title}
             loading="lazy"
             onLoad={(e) => onImageLoad(e, img.id)}
-            onClick={(e) => onOpenImage(e, img)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenImage(e, img)
+            }}
             className="w-full h-full object-cover select-none"
           />
         )}

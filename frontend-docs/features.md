@@ -127,7 +127,11 @@ The backend also enforces this (returns `400` on the 9th pin).
 Built with `@dnd-kit`:
 
 - `DndContext` uses `closestCenter` collision detection and the `restrictToParentElement` modifier (from `@dnd-kit/modifiers`) to keep the dragged card inside the grid and **prevent horizontal viewport expansion**.
-- Sensors: `PointerSensor` (6px activation distance so clicks still open the image), `TouchSensor` (150ms delay), and `KeyboardSensor`.
+- **Sensors** (improved for mobile UX):
+  - **MouseSensor**: 6px activation distance for desktop — allows quick drag after tiny movement while preserving click-to-open behavior
+  - **TouchSensor**: 0ms delay with 5px tolerance — immediate response, combined with drag handle to separate drag from scroll
+  - **KeyboardSensor**: Standard coordinate getter for accessibility
+- **Drag Handle**: A dedicated drag handle (hamburger icon) appears on hover at the top-left of each pinned card. Only this handle can initiate a drag, leaving the rest of the card scrollable and clickable.
 - `SortableContext` with `rectSortingStrategy`.
 
 Order is tracked in a `pinnedOrder` state array of ids:
