@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
+import { memo } from 'react'
 
-function FloatingDock() {
+const FloatingDock = memo(function FloatingDock() {
   const { theme, toggleTheme } = useTheme()
   const { logout, user } = useAuth()
   const location = useLocation()
@@ -90,6 +91,6 @@ function FloatingDock() {
       </button>
     </div>
   )
-}
+})
 
 export default FloatingDock

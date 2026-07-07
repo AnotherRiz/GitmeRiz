@@ -16,6 +16,7 @@ function Gallery() {
   const [error, setError] = useState('')
   const [selectedImage, setSelectedImage] = useState(null)
   const sentinelRef = useRef(null)
+  const isMountedRef = useRef(true)
 
   const fetchImages = async (isLoadMore = false) => {
     if (isLoadMore) {
@@ -34,6 +35,9 @@ function Gallery() {
       
       const res = await get(`/gallery/public?${params.toString()}`)
       
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) return
+      
       if (res.ok) {
         const { items, next_cursor } = res.data
         
@@ -46,12 +50,16 @@ function Gallery() {
       }
     } catch (err) {
       console.error('Error fetching images:', err)
-      setError('Network error. Please try again.')
+      if (isMountedRef.current) {
+        setError('Network error. Please try again.')
+      }
     } finally {
-      if (isLoadMore) {
-        setLoadingMore(false)
-      } else {
-        setLoading(false)
+      if (isMountedRef.current) {
+        if (isLoadMore) {
+          setLoadingMore(false)
+        } else {
+          setLoading(false)
+        }
       }
     }
   }
@@ -68,7 +76,7 @@ function Gallery() {
     async function fetchUsers() {
       if (user && user.role === 'superuser') {
         const res = await get('/users')
-        if (res.ok) {
+        if (res.ok && isMountedRef.current) {
           const map = {}
           res.data.forEach((u) => {
             map[u.id] = u.name
@@ -81,6 +89,14 @@ function Gallery() {
     fetchImages(false)
     fetchUsers()
   }, [authLoading, user])
+
+  // Cleanup: mark component as unmounted
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // Infinite scroll with IntersectionObserver
   useEffect(() => {
@@ -99,7 +115,11 @@ function Gallery() {
     )
 
     observer.observe(el)
-    return () => observer.disconnect()
+    
+    // Cleanup: disconnect observer when component unmounts or dependencies change
+    return () => {
+      observer.disconnect()
+    }
   }, [hasMore, loading, loadingMore, cursor])
 
   if (authLoading) {
