@@ -32,23 +32,77 @@ This means callers **never** need `try/catch` or `.json()` — they just check `
 
 Every request is sent with:
 
-- `credentials: 'include'` — sends httpOnly cookies automatically (primary auth).
-- `Authorization: Bearer <token>` — added from `localStorage` if a token exists (fallback for backward compatibility).
+- `credentials: 'include'` — sends `httpOnly` cookies automatically (primary auth, e.g., `auth_token` and `refresh_token`).
+- `Authorization: Bearer <token>` — added from `localStorage` if a token exists (fallback for clients/endpoints not utilizing cookies).
 
-The backend is expected to prioritize the cookie over the header.
+If a request returns `401 Unauthorized`, the client automatically attempts to perform a **silent token rotation** using `/refresh` before retrying the original request.
 
 ### Core Function
 
 ```js
+let refreshPromise = null
+
 export async function api(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`
-  const headers = { 'Content-Type': 'application/json', ...options.headers }
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  }
 
   const token = localStorage.getItem('token')
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
 
   try {
-    const res = await fetch(url, { ...options, headers, credentials: 'include' })
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include',
+    })
+
+    // Catch 401 and attempt silent refresh
+    if (res.status === 401 && endpoint !== '/refresh' && endpoint !== '/login' && endpoint !== '/logout') {
+      if (!refreshPromise) {
+        refreshPromise = (async () => {
+          try {
+            const refreshUrl = `${BASE_URL}/refresh`
+            const refreshRes = await fetch(refreshUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+            })
+            const refreshJson = await refreshRes.json()
+            if (refreshJson.success) {
+              localStorage.setItem('token', refreshJson.data.token)
+              window.dispatchEvent(new CustomEvent('auth-token-refreshed', { detail: refreshJson.data }))
+              return { ok: true, token: refreshJson.data.token }
+            }
+            return { ok: false }
+          } catch {
+            return { ok: false }
+          } finally {
+            refreshPromise = null
+          }
+        })()
+      }
+
+      const refreshResult = await refreshPromise
+
+      if (refreshResult.ok) {
+        headers['Authorization'] = `Bearer ${refreshResult.token}`
+        const retryRes = await fetch(url, { ...options, headers, credentials: 'include' })
+        const retryJson = await retryRes.json()
+        return retryJson.success
+          ? { ok: true, data: retryJson.data }
+          : { ok: false, error: retryJson.error || 'Something went wrong' }
+      } else {
+        window.dispatchEvent(new Event('auth-logout'))
+        return { ok: false, error: 'Session expired. Please log in again.' }
+      }
+    }
+
     const json = await res.json()
     return json.success
       ? { ok: true, data: json.data }
