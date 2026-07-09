@@ -37,6 +37,24 @@ function ImageModal({ image, onClose }) {
   
   // Ref untuk anchor point (tidak trigger re-render)
   const anchorPoint = useRef({ x: 0, y: 0 })
+  const zoomContainerRef = useRef(null)
+
+  // Event wheel untuk zoom dengan scroll (non-pasif)
+  useEffect(() => {
+    const container = zoomContainerRef.current
+    if (!container) return
+
+    const handleWheel = (e) => {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -0.2 : 0.2 // Scroll down = zoom out, scroll up = zoom in
+      setScale((prev) => Math.max(1, Math.min(4, prev + delta)))
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+    }
+  }, [loading, error])
 
   // Trigger open animation setelah loading selesai
   useEffect(() => {
@@ -174,14 +192,17 @@ function ImageModal({ image, onClose }) {
     return { maxX, maxY }
   }
 
-  // Event Handlers untuk Grab/Drag
-  const handleMouseDown = (e) => {
+  // Event Handler untuk Grab/Drag (Pointer Events untuk dukungan mouse dan sentuh)
+  const handlePointerDown = (e) => {
     // Hanya aktif jika sudah zoom in (scale > 1)
     if (scale <= 1) return
     
     // Jangan drag jika klik di zoom controls atau header
     if (e.target.closest('.zoom-controls') || e.target.closest('.modal-header')) return
     
+    // Hanya proses pointer utama (sentuhan pertama atau klik kiri)
+    if (!e.isPrimary) return
+
     e.preventDefault()
     setIsDragging(true)
     
@@ -192,9 +213,10 @@ function ImageModal({ image, onClose }) {
     }
   }
 
-  const handleMouseMove = (e) => {
+  const handlePointerMove = (e) => {
     // Validasi: hanya proses jika sedang dragging
     if (!isDragging) return
+    if (!e.isPrimary) return
     
     // Kalkulasi posisi baru: posisi kursor - anchor point
     let newX = e.clientX - anchorPoint.current.x
@@ -212,23 +234,17 @@ function ImageModal({ image, onClose }) {
     setPosition({ x: newX, y: newY })
   }
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e) => {
+    if (!e.isPrimary) return
     setIsDragging(false)
   }
 
-  const handleMouseLeave = () => {
+  const handlePointerLeave = (e) => {
+    if (!e.isPrimary) return
     setIsDragging(false)
   }
 
-  // Wheel event untuk zoom dengan scroll
-  const handleWheel = (e) => {
-    e.preventDefault()
-    
-    const delta = e.deltaY > 0 ? -0.2 : 0.2 // Scroll down = zoom out, scroll up = zoom in
-    const newScale = Math.max(1, Math.min(4, scale + delta))
-    
-    setScale(newScale)
-  }
+
 
   // Zoom functions
   const handleZoomIn = () => {
@@ -471,13 +487,14 @@ function ImageModal({ image, onClose }) {
           className="relative w-full h-full flex items-center justify-center"
           style={{
             cursor: getCursor(),
-            userSelect: 'none'
+            userSelect: 'none',
+            touchAction: scale > 1 ? 'none' : 'auto' // Nonaktifkan scrolling/panning sentuh bawaan browser saat diperbesar
           }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-          onWheel={handleWheel}
+          ref={zoomContainerRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
           onDoubleClick={handleDoubleClick}
         >
           <img
