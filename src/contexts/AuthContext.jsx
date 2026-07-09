@@ -7,7 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Restore session on app load
+  // Restore session on app load and handle auth events
   useEffect(() => {
     async function restoreSession() {
       const token = localStorage.getItem('token')
@@ -20,13 +20,32 @@ export function AuthProvider({ children }) {
       if (result.ok) {
         setUser(result.data)
       } else {
-        // Token invalid or expired
+        // Token invalid or expired (cleared by handleLogout anyway)
         localStorage.removeItem('token')
       }
       setLoading(false)
     }
 
+    const handleLogout = () => {
+      localStorage.removeItem('token')
+      setUser(null)
+    }
+
+    const handleRefreshed = (e) => {
+      if (e.detail && e.detail.user) {
+        setUser(e.detail.user)
+      }
+    }
+
+    window.addEventListener('auth-logout', handleLogout)
+    window.addEventListener('auth-token-refreshed', handleRefreshed)
+
     restoreSession()
+
+    return () => {
+      window.removeEventListener('auth-logout', handleLogout)
+      window.removeEventListener('auth-token-refreshed', handleRefreshed)
+    }
   }, [])
 
   // Register a new user
