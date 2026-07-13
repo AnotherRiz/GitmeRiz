@@ -1,6 +1,17 @@
+@import 'plyr/dist/plyr.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Override Plyr accent color to match GitmeRiz theme */
+:root {
+  --plyr-color-main: #7c3aed; /* violet-600 */
+}
+
+.dark {
+  --plyr-color-main: #8b5cf6; /* violet-500, slightly lighter for dark mode */
+}
 
 @layer base {
   html {

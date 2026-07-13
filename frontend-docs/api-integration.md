@@ -365,3 +365,72 @@ Full endpoint documentation (request/response shapes, error codes) lives in [`..
 - `PATCH /gallery/{id}` (unified updates: title, visibility, pinned)
 - `PATCH /gallery/reorder-pins`
 - `DELETE /gallery/{id}`
+
+---
+
+## Video Endpoints
+
+### Listing & Pagination
+
+| Endpoint | Auth | Description |
+| --- | --- | --- |
+| `GET /video/public` | No | List all public videos (cursor pagination: `?cursor={id}&limit=20`) |
+| `GET /video/me` | Yes | List authenticated user's videos (cursor pagination) |
+| `GET /video/me/pinned` | Yes | List user's pinned videos (max 4, no pagination) |
+| `GET /video/{id}` | No | Get a single video's metadata by numeric ID |
+
+### Upload & Processing
+
+| Endpoint | Auth | Description |
+| --- | --- | --- |
+| `POST /video` | Yes | Upload video(s) via `multipart/form-data`. Returns `202 Accepted` immediately; FFmpeg processes in background. |
+| `POST /video/status` | Yes | Batch-check processing status. Request: `{ ids: [1, 2] }`. Response: `{ "1": "active", "2": "processing" }` |
+| `POST /video/{id}/reprocess` | Yes | Retry FFmpeg processing. Returns `202 Accepted`. |
+
+### Streaming & Download
+
+| Endpoint | Auth | Description |
+| --- | --- | --- |
+| `GET /video/r/{short_id}` | Cookie/Bearer | Stream video inline (supports HTTP 206 Range requests for scrubbing) |
+| `GET /video/t/{short_id}` | Cookie/Bearer | Serve pre-generated WebP thumbnail |
+| `GET /video/d/{id}` | No | Download video file as attachment |
+
+### Video Status Polling Strategy
+
+When videos are uploaded, the backend returns `202 Accepted` with `status: "processing"`. The frontend uses an interval-based polling strategy:
+
+```js
+import { fetchVideoStatuses } from '../lib/videoPolling'
+
+// Inside a useEffect with [videos] dependency:
+const processingIds = videos
+  .filter((v) => v.status === 'processing')
+  .map((v) => v.id)
+
+if (processingIds.length === 0) return
+
+const intervalId = setInterval(async () => {
+  if (document.hidden) return // Pause when tab is hidden
+  const statusMap = await fetchVideoStatuses(processingIds)
+  // Update video states when status transitions to "active"
+}, 4000) // Poll every 4 seconds
+```
+
+### Plyr Video Player Integration
+
+The `Watch.jsx` page uses [Plyr](https://plyr.io/) as the HTML5 video player, pointing to the backend range-request endpoint:
+
+```js
+import Plyr from 'plyr'
+
+// In a useEffect:
+const player = new Plyr(videoRef.current, {
+  controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'pip', 'airplay', 'fullscreen'],
+})
+
+// Video source:
+// <source src={`${BASE_URL}/video/r/${shortId}`} type="video/mp4" />
+```
+
+Plyr's accent color is overridden in `index.css` via `--plyr-color-main` to match the GitmeRiz violet theme.
+
