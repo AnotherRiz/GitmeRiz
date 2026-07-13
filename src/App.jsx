@@ -10,6 +10,9 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Gallery from './pages/Gallery'
 import MyGallery from './pages/MyGallery'
+import Video from './pages/Video'
+import MyVideo from './pages/MyVideo'
+import Watch from './pages/Watch'
 
 function AppContent() {
   const { user } = useAuth()
@@ -32,6 +35,9 @@ function AppContent() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/:username/gallery" element={<MyGallery />} />
+        <Route path="/video" element={<Video />} />
+        <Route path="/:username/video" element={<MyVideo />} />
+        <Route path="/watch/:shortId" element={<Watch />} />
       </Routes>
     </div>
   )
