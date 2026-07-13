@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { get } from '../lib/api'
 import { fetchVideoStatuses } from '../lib/videoPolling'
 import VideoCard from '../components/VideoCard'
+import UploadVideoModal from '../components/UploadVideoModal'
 
 /**
  * User's personal video dashboard page.
@@ -25,9 +26,21 @@ function MyVideo() {
   const [cursor, setCursor] = useState(null)
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState('')
+  const [isUploadOpen, setIsUploadOpen] = useState(false)
+  const [isUploadMinimized, setIsUploadMinimized] = useState(false)
 
   const sentinelRef = useRef(null)
   const isMountedRef = useRef(true)
+
+  // Listen for reopen upload modal event
+  useEffect(() => {
+    const handleReopenUpload = () => {
+      setIsUploadOpen(true)
+      setIsUploadMinimized(false)
+    }
+    window.addEventListener('reopenUploadVideoModal', handleReopenUpload)
+    return () => window.removeEventListener('reopenUploadVideoModal', handleReopenUpload)
+  }, [])
 
   // Fetch pinned videos
   const fetchPinnedVideos = async () => {
@@ -220,6 +233,18 @@ function MyVideo() {
           <h1 className="text-3xl font-bold">My Videos</h1>
           <p className="text-sm opacity-60 mt-1">Manage your uploaded videos.</p>
         </div>
+        <button
+          onClick={() => {
+            setIsUploadOpen(true)
+            setIsUploadMinimized(false)
+          }}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl shadow-sm transition-all"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Upload Video
+        </button>
       </div>
 
       {/* Error banner */}
@@ -298,6 +323,27 @@ function MyVideo() {
           )}
         </div>
       )}
+
+      {/* Video Upload Modal */}
+      <UploadVideoModal
+        isOpen={isUploadOpen}
+        isMinimized={isUploadMinimized}
+        onClose={() => {
+          setIsUploadOpen(false)
+          setIsUploadMinimized(false)
+        }}
+        onMinimize={() => {
+          setIsUploadOpen(false)
+          setIsUploadMinimized(true)
+        }}
+        onSuccess={(newVideo) => {
+          // Prepend newly uploaded processing video to the list
+          setVideos((prev) => {
+            if (prev.some((v) => v.id === newVideo.id)) return prev
+            return [newVideo, ...prev]
+          })
+        }}
+      />
     </div>
   )
 }
