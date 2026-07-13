@@ -25,37 +25,48 @@ function Watch() {
 
   // Initialize Plyr player
   useEffect(() => {
-    if (!videoRef.current) return
+    let player = null
+    let timer = null
 
-    const player = new Plyr(videoRef.current, {
-      controls: [
-        'play-large',
-        'play',
-        'progress',
-        'current-time',
-        'duration',
-        'mute',
-        'volume',
-        'settings',
-        'pip',
-        'airplay',
-        'fullscreen',
-      ],
-      settings: ['quality', 'speed'],
-      speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
-      keyboard: { focused: true, global: true },
-      tooltips: { controls: true, seek: true },
-    })
+    if (videoRef.current && !authLoading) {
+      // Small delay to ensure DOM is fully ready and settled after React's render/mount cycle
+      timer = setTimeout(() => {
+        if (!videoRef.current) return
 
-    playerRef.current = player
+        player = new Plyr(videoRef.current, {
+          controls: [
+            'play-large',
+            'play',
+            'progress',
+            'current-time',
+            'duration',
+            'mute',
+            'volume',
+            'settings',
+            'pip',
+            'airplay',
+            'fullscreen',
+          ],
+          settings: ['quality', 'speed'],
+          speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 2] },
+          keyboard: { focused: true, global: true },
+          tooltips: { controls: true, seek: true },
+        })
 
-    // Handle player errors
-    player.on('error', () => {
-      setError(true)
-    })
+        playerRef.current = player
+
+        // Handle player errors
+        player.on('error', () => {
+          setError(true)
+        })
+      }, 50)
+    }
 
     return () => {
-      player.destroy()
+      if (timer) clearTimeout(timer)
+      if (player) {
+        player.destroy()
+      }
       playerRef.current = null
     }
   }, [shortId, authLoading])
