@@ -8,7 +8,10 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
  * and a processing skeleton when the video is still being transcoded.
  */
 function VideoCard({ video }) {
-  const isProcessing = video.status === 'processing'
+  const isProcessing = video.status === 'processing' || video.status.startsWith('processing:')
+  const progress = video.status.startsWith('processing:')
+    ? parseInt(video.status.split(':')[1])
+    : (video.processing_progress !== undefined ? video.processing_progress : 0);
   const isPrivate = video.visibility === 'private'
   const displayTitle = video.title
     ? video.title.length > 60 ? video.title.substring(0, 60) + '...' : video.title
@@ -58,24 +61,28 @@ function VideoCard({ video }) {
                 />
               </svg>
             </div>
-            <span className="text-xs text-violet-300 font-medium">Transcoding video...</span>
+            <span className="text-xs text-violet-300 font-medium">
+              Transcoding video... {progress > 0 ? `${progress}%` : ''}
+            </span>
           </div>
         )}
 
         {/* Visibility badge (top-right) */}
-        {isPrivate && !isProcessing && (
+        {!isProcessing && (
           <div
             className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-black/60 text-white shadow-md"
-            title="Private Video"
+            title={isPrivate ? "Private Video" : "Public Video"}
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
+            {isPrivate ? (
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            )}
           </div>
         )}
 
