@@ -10,18 +10,15 @@ export function AuthProvider({ children }) {
   // Restore session on app load and handle auth events
   useEffect(() => {
     async function restoreSession() {
-      const token = localStorage.getItem('token')
-      if (!token) {
-        setLoading(false)
-        return
-      }
-
-      const result = await get('/users/me')
+      // Cookies are sent automatically (credentials: 'include' in api.js).
+      // validate-session is read-only and returns the user object directly.
+      const result = await get('/validate-session')
       if (result.ok) {
-        setUser(result.data)
+        setUser(result.data) // data IS the user object
       } else {
-        // Token invalid or expired (cleared by handleLogout anyway)
+        // No valid session: clear any stale fallback token
         localStorage.removeItem('token')
+        setUser(null)
       }
       setLoading(false)
     }

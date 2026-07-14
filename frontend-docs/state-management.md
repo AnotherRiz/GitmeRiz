@@ -22,10 +22,12 @@ Manages the authenticated user and exposes auth actions. Wrap the app in `<AuthP
 
 ### Session Restore
 
-On mount, the provider checks `localStorage` for a `token`. If present, it calls `GET /users/me`:
+On mount, the provider calls `GET /validate-session` to restore the session using the `refresh_token` HttpOnly cookie (sent automatically by the browser). This is a read-only endpoint that does not rotate tokens.
 
-- **Success** → sets `user`.
-- **Failure** (expired/invalid) → removes the token from `localStorage`.
+- **Success** (`200`) → sets `user` from the returned object (which is the user object directly in `data`, not nested).
+- **Failure** (`401` or network error) → clears any stale fallback token from `localStorage` and sets `user` to `null`.
+
+This approach works whether or not a token exists in `localStorage`, ensuring users with valid HttpOnly cookies remain logged in across page refreshes.
 
 `loading` stays `true` until this completes, so protected pages can show a spinner instead of prematurely redirecting.
 
@@ -64,7 +66,7 @@ function Profile() {
 
 ### Token Storage Note
 
-The JWT is stored in `localStorage` under the key `token`. The `api.js` client also relies on cookie-based auth (`credentials: 'include'`) and sends the bearer token as a fallback for backward compatibility. See [API Integration](./api-integration.md).
+The JWT is stored in `localStorage` under the key `token` as a fallback for the `Authorization: Bearer <token>` header. **HttpOnly cookies are the primary authentication mechanism** and are sent automatically with every request via `credentials: 'include'` in the API client (`src/lib/api.js`). The `api.js` client also relies on cookie-based auth and sends the bearer token from localStorage as a fallback for backward compatibility. See [API Integration](./api-integration.md).
 
 ---
 
