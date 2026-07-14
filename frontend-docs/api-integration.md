@@ -357,7 +357,15 @@ const getImageUrl = (img, type = 't') =>
 
 Full endpoint documentation (request/response shapes, error codes) lives in [`../api-docs.md`](../api-docs.md). Notable endpoints used by the frontend:
 
-- `POST /register`, `POST /login`, `POST /logout`, `GET /users/me`, `GET /users`
+### Authentication
+
+- `GET /validate-session` — read-only session restore; checks the `refresh_token` HttpOnly cookie and returns the user object. Does not rotate tokens. Used on app startup by `AuthContext`.
+- `POST /register`, `POST /login`, `POST /logout` — account registration, login, logout (all use HttpOnly cookies).
+- `POST /refresh` — rotates access and refresh tokens using the `refresh_token` cookie.
+- `GET /users/me`, `GET /users` — get current user or list users (superuser only).
+
+### Gallery & Images
+
 - `GET /gallery/public`, `GET /gallery/me`, `GET /gallery/me/pinned` with cursor-based pagination
 - `POST /gallery` (upload), `POST /gallery/status`, `POST /gallery/{id}/reprocess`
 - `GET /gallery/r/{short_id}`, `GET /gallery/t/{short_id}`, `GET /gallery/p/{short_id}` (raw, thumbnail, preview)
