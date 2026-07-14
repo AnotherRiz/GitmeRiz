@@ -94,6 +94,7 @@ function VideoPreview({ fileObj, onRemove, uploading, selectedFilesCount }) {
 function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
   const [selectedFiles, setSelectedFiles] = useState([])
   const [singleTitle, setSingleTitle] = useState('')
+  const [description, setDescription] = useState('')
   const [visibility, setVisibility] = useState('private')
   const [dragActive, setDragActive] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -111,6 +112,7 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
     if (!isOpen && !uploadInProgressRef.current) {
       setSelectedFiles([])
       setSingleTitle('')
+      setDescription('')
       setVisibility('private')
       setProgress(0)
       setUploading(false)
@@ -325,6 +327,9 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
         formData.append('file', fileObj.file)
         formData.append('title', fileObj.title)
         formData.append('visibility', visibility)
+        if (description.trim() !== '') {
+          formData.append('description', description.trim())
+        }
 
         const xhr = new XMLHttpRequest()
         xhr.open('POST', `${BASE_URL}/video`)
@@ -465,6 +470,24 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
                 placeholder="Enter a title for your video"
                 className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm"
                 required={selectedFiles.length === 1}
+              />
+            </div>
+          )}
+
+          {/* Single Video Description Input */}
+          {selectedFiles.length <= 1 && (
+            <div className="space-y-1">
+              <label htmlFor="video-description" className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
+                Description (Optional)
+              </label>
+              <textarea
+                id="video-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                disabled={uploading}
+                placeholder="Enter a description for your video"
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm resize-none"
               />
             </div>
           )}
