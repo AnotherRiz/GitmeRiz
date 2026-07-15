@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { Navigate, useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { get } from '../lib/api'
+import { get, api } from '../lib/api'
 import { fetchVideoStatuses } from '../lib/videoPolling'
 import VideoCard from '../components/VideoCard'
 import UploadVideoModal from '../components/UploadVideoModal'
+import EditVideoModal from '../components/EditVideoModal'
+import ConfirmModal from '../components/ConfirmModal'
 
 /**
  * User's personal video dashboard page.
@@ -28,6 +30,8 @@ function MyVideo() {
   const [error, setError] = useState('')
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isUploadMinimized, setIsUploadMinimized] = useState(false)
+  const [editingVideo, setEditingVideo] = useState(null)
+  const [deletingVideo, setDeletingVideo] = useState(null)
 
   const sentinelRef = useRef(null)
   const isMountedRef = useRef(true)
@@ -105,6 +109,26 @@ function MyVideo() {
   const loadNextPage = () => {
     if (!loadingMore && hasMore && cursor) {
       fetchMyVideos(true)
+    }
+  }
+
+  // Handle edit success - update video in both lists
+  const handleEditSuccess = (updated) => {
+    setVideos((prev) => prev.map((v) => (v.id === updated.id ? { ...v, ...updated } : v)))
+    setPinnedVideos((prev) => prev.map((v) => (v.id === updated.id ? { ...v, ...updated } : v)))
+  }
+
+  // Handle delete confirm
+  const handleConfirmDelete = async () => {
+    if (!deletingVideo) return
+    const res = await api(`/video/${deletingVideo.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setVideos((prev) => prev.filter((v) => v.id !== deletingVideo.id))
+      setPinnedVideos((prev) => prev.filter((v) => v.id !== deletingVideo.id))
+      setDeletingVideo(null)
+    } else {
+      setError(res.error || 'Failed to delete video.')
+      setDeletingVideo(null)
     }
   }
 
@@ -287,7 +311,13 @@ function MyVideo() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {pinnedVideos.slice(0, 4).map((video) => (
-                  <VideoCard key={video.id} video={video} />
+                  <VideoCard
+                    key={video.id}
+                    video={video}
+                    showActions
+                    onEdit={(v) => setEditingVideo(v)}
+                    onDelete={(v) => setDeletingVideo(v)}
+                  />
                 ))}
               </div>
             )}
@@ -316,7 +346,13 @@ function MyVideo() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-8">
                 {videos.map((video) => (
-                  <VideoCard key={video.id} video={video} />
+                  <VideoCard
+                    key={video.id}
+                    video={video}
+                    showActions
+                    onEdit={(v) => setEditingVideo(v)}
+                    onDelete={(v) => setDeletingVideo(v)}
+                  />
                 ))}
               </div>
             )}
@@ -357,6 +393,26 @@ function MyVideo() {
             return [newVideo, ...prev]
           })
         }}
+      />
+
+      {/* Edit Video Modal */}
+      <EditVideoModal
+        isOpen={!!editingVideo}
+        video={editingVideo}
+        onClose={() => setEditingVideo(null)}
+        onSuccess={handleEditSuccess}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingVideo}
+        onClose={() => setDeletingVideo(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Video"
+        message={deletingVideo ? `Delete "${deletingVideo.title || 'this video'}"? This cannot be undone.` : ''}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
       />
     </div>
   )

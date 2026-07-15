@@ -225,3 +225,62 @@ Behavior:
 - Visual feedback: Handle shows `cursor-grab` idle and `cursor-grabbing` when active.
 - Hover reveals a bottom gradient with the title sliding up; hover also scales the card slightly.
 - Renders processing spinner / failed-retry / active image based on `img.status`.
+---
+
+## VideoCard
+
+**File:** `VideoCard.jsx`
+
+Reusable video card component for displaying videos in grids (both public and private galleries).
+
+**Props:**
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `video` | `object` | The video object (`{ id, title, short_id, visibility, status, ... }`) |
+| `showActions` | `boolean` | Default `false`. If `true`, displays owner action dropdown (Edit/Delete) |
+| `onEdit` | `(video) => void` | Called when Edit is clicked (only if `showActions` is true) |
+| `onDelete` | `(video) => void` | Called when Delete is clicked (only if `showActions` is true) |
+
+Behavior:
+
+- Displays a **thumbnail** using the WebP preview (`/video/t/{short_id}`).
+- **Visibility badge** (top-left): Shows a lock icon for private videos, an eye icon for public videos.
+- **Hover play overlay**: A centered play button appears on hover (non-processing videos only).
+- **Three-dot (⋮) actions button** (top-right, owner actions only):
+  - Only renders when `showActions` is `true` and the video is not processing.
+  - Hover-only visibility (appears on card hover), but stays visible once the menu is opened.
+  - Dropdown menu with Edit and Delete options; both close the menu on click.
+  - Stops click propagation so the Link to `/watch/:short_id` does NOT navigate.
+  - Closes on outside click or Esc key.
+- **Processing state**: Shows a spinning gear icon with a progress percentage while transcoding; card is locked (`pointer-events-none`) and no actions render.
+- Video title is displayed below the thumbnail, truncated if longer than 60 characters.
+
+---
+
+## EditVideoModal
+
+**File:** `EditVideoModal.jsx`
+
+Modal for editing video metadata (title, description, visibility). Reuses the design and layout of `EditNameModal`.
+
+**Props:**
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `isOpen` | `boolean` | Controls visibility |
+| `onClose` | `() => void` | Close handler |
+| `video` | `object` | The video being edited (`{ id, short_id, title, description, visibility, ... }`) |
+| `onSuccess` | `(updatedVideo) => void` | Called with the server's updated video object |
+
+Behavior:
+
+- **Thumbnail preview** (read-only): Displays the video's WebP thumbnail (`/video/t/{short_id}`). Image load errors are silently ignored.
+- **Video Title** (required): Text input pre-filled with `video.title`. Non-empty validation; Save is disabled if empty or unchanged.
+- **Description** (optional): Textarea pre-filled with `video.description`. Supports multi-line input.
+- **Visibility toggle**: Private/Public buttons (styled like those in `UploadVideoModal`). Pre-filled with `video.visibility`.
+- **Form submission**: Sends `PATCH /video/{id}` with `{ title, description, visibility }` (the unified video update endpoint).
+- Closes on Esc key (when not saving) and on backdrop click.
+- Shows inline error messages if submission fails or title is empty.
+- Save button disabled while submitting.
+
