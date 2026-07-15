@@ -62,7 +62,7 @@ function ConfirmModal({
       {/* Modal Card */}
       <div
         className={`relative w-full max-w-md rounded-2xl border border-light-card-border dark:border-dark-card-border bg-light-card dark:bg-dark-card shadow-2xl transition-all duration-300 ${
-          isOpen && !isClosing ? 'scale-100' : 'scale-95'
+          isOpen && !isClosing ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
       >
         <div className="p-6">
