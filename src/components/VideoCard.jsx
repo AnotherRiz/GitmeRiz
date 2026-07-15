@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
@@ -6,8 +7,16 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
  * Reusable video card component for video grids.
  * Displays a thumbnail, duration badge, visibility icon, hover play overlay,
  * and a processing skeleton when the video is still being transcoded.
+ *
+ * Props:
+ *   - video: The video object
+ *   - showActions (default false): Whether to show the edit/delete dropdown menu
+ *   - onEdit: Callback when Edit is clicked (only if showActions is true)
+ *   - onDelete: Callback when Delete is clicked (only if showActions is true)
  */
-function VideoCard({ video }) {
+function VideoCard({ video, showActions = false, onEdit, onDelete }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
   const isProcessing = video.status === 'processing' || video.status.startsWith('processing:')
   const progress = video.status.startsWith('processing:')
     ? parseInt(video.status.split(':')[1])
@@ -19,8 +28,33 @@ function VideoCard({ video }) {
 
   const thumbnailUrl = `${BASE_URL}/video/t/${video.short_id}`
 
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+
+    // Close menu on Esc key
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && menuOpen) {
+        setMenuOpen(false)
+      }
+    }
+
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('keydown', handleKeyDown)
+      }
+    }
+  }, [menuOpen])
+
   const cardContent = (
-    <div className="group">
+    <div className="group relative">
       {/* Thumbnail container */}
       <div className="aspect-video w-full rounded-xl overflow-hidden bg-slate-900 relative">
         {/* Thumbnail image */}
@@ -67,10 +101,10 @@ function VideoCard({ video }) {
           </div>
         )}
 
-        {/* Visibility badge (top-right) */}
+        {/* Visibility badge (top-left) */}
         {!isProcessing && (
           <div
-            className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-black/60 text-white shadow-md"
+            className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-black/60 text-white shadow-md"
             title={isPrivate ? "Private Video" : "Public Video"}
           >
             {isPrivate ? (
@@ -82,6 +116,67 @@ function VideoCard({ video }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
               </svg>
+            )}
+          </div>
+        )}
+
+        {/* Actions dropdown button (top-right, hover only, owner actions) */}
+        {!isProcessing && showActions && (
+          <div
+            className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            ref={menuRef}
+            style={{
+              opacity: menuOpen ? 1 : undefined,
+            }}
+          >
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setMenuOpen((prev) => !prev)
+              }}
+              className="p-1.5 rounded-lg bg-black/60 text-white shadow-md hover:bg-black/80 transition-colors"
+              title="Video options"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="5" r="2" />
+                <circle cx="12" cy="12" r="2" />
+                <circle cx="12" cy="19" r="2" />
+              </svg>
+            </button>
+
+            {/* Dropdown menu */}
+            {menuOpen && (
+              <div
+                className="absolute top-10 right-0 z-30 bg-light-navbar dark:bg-dark-navbar border border-light-card-border dark:border-dark-card-border rounded-xl shadow-2xl py-1 min-w-[100px] text-light-text dark:text-dark-text"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+              >
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setMenuOpen(false)
+                    onEdit?.(video)
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-light-body dark:hover:bg-dark-body transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setMenuOpen(false)
+                    onDelete?.(video)
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-light-body dark:hover:bg-dark-body transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             )}
           </div>
         )}
