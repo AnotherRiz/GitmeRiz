@@ -10,11 +10,12 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
  *
  * Props:
  *   - video: The video object
- *   - showActions (default false): Whether to show the edit/delete dropdown menu
+ *   - showActions (default false): Whether to show the edit/delete/pin dropdown menu
  *   - onEdit: Callback when Edit is clicked (only if showActions is true)
  *   - onDelete: Callback when Delete is clicked (only if showActions is true)
+ *   - onTogglePin: Callback when Pin/Unpin is clicked (only if showActions is true)
  */
-function VideoCard({ video, showActions = false, onEdit, onDelete }) {
+function VideoCard({ video, showActions = false, onEdit, onDelete, onTogglePin }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const isProcessing = video.status === 'processing' || video.status.startsWith('processing:')
@@ -164,6 +165,18 @@ function VideoCard({ video, showActions = false, onEdit, onDelete }) {
                   className="w-full text-left px-3 py-2 text-sm hover:bg-light-body dark:hover:bg-dark-body transition-colors"
                 >
                   Edit
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setMenuOpen(false)
+                    onTogglePin?.(video)
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-light-body dark:hover:bg-dark-body transition-colors"
+                  title={video.pinned ? 'Unpin video' : 'Pin video'}
+                >
+                  {video.pinned ? 'Unpin' : 'Pin'}
                 </button>
                 <button
                   onClick={(e) => {

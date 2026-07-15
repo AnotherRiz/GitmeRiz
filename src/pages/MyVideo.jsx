@@ -1,16 +1,33 @@
 import { useState, useEffect, useRef } from 'react'
 import { Navigate, useParams, useNavigate } from 'react-router-dom'
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  rectSortingStrategy,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable'
+import { restrictToParentElement } from '@dnd-kit/modifiers'
 import { useAuth } from '../contexts/AuthContext'
 import { get, api } from '../lib/api'
 import { fetchVideoStatuses } from '../lib/videoPolling'
 import VideoCard from '../components/VideoCard'
+import SortableVideoCard from '../components/SortableVideoCard'
 import UploadVideoModal from '../components/UploadVideoModal'
 import EditVideoModal from '../components/EditVideoModal'
 import ConfirmModal from '../components/ConfirmModal'
 
 /**
  * User's personal video dashboard page.
- * Displays pinned videos (max 4) and a main feed with cursor-based pagination.
+ * Displays pinned videos (max 4) with drag-to-reorder and a main feed with cursor-based pagination.
  * Polls for processing status updates on transcoding videos.
  */
 function MyVideo() {
@@ -20,6 +37,7 @@ function MyVideo() {
 
   // Pinned videos state
   const [pinnedVideos, setPinnedVideos] = useState([])
+  const [pinnedOrder, setPinnedOrder] = useState([])
 
   // Main feed state
   const [videos, setVideos] = useState([])
@@ -33,8 +51,26 @@ function MyVideo() {
   const [editingVideo, setEditingVideo] = useState(null)
   const [deletingVideo, setDeletingVideo] = useState(null)
 
+  // Modal states for confirmations and alerts
+  const [pinLimitModalOpen, setPinLimitModalOpen] = useState(false)
+  const [alertState, setAlertState] = useState(null) // { title, message }
+
   const sentinelRef = useRef(null)
   const isMountedRef = useRef(true)
+
+  // Drag sensors: separate for desktop and mobile
+  // Desktop (MouseSensor): 8px distance activation for click vs drag distinction
+  // Mobile (TouchSensor): 250ms delay to allow scrolling, small tolerance
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  // Helper: show alert modal with custom title and message
+  const showAlert = (title, message) => {
+    setAlertState({ title, message })
+  }
 
   // Listen for reopen upload modal event
   useEffect(() => {
@@ -52,6 +88,11 @@ function MyVideo() {
       const res = await get('/video/me/pinned')
       if (res.ok && isMountedRef.current) {
         setPinnedVideos(res.data || [])
+        // Update the pinned order based on pin_order from backend
+        const orderedIds = (res.data || [])
+          .sort((a, b) => (a.pin_order || 0) - (b.pin_order || 0))
+          .map((v) => v.id)
+        setPinnedOrder(orderedIds)
       }
     } catch (err) {
       console.error('Error fetching pinned videos:', err)
@@ -118,18 +159,102 @@ function MyVideo() {
     setPinnedVideos((prev) => prev.map((v) => (v.id === updated.id ? { ...v, ...updated } : v)))
   }
 
-  // Handle delete confirm
-  const handleConfirmDelete = async () => {
-    if (!deletingVideo) return
-    const res = await api(`/video/${deletingVideo.id}`, { method: 'DELETE' })
+  // Handle pin toggle with limit enforcement
+  const handleTogglePin = async (video) => {
+    // Check if trying to pin (not unpin) and limit is reached
+    if (!video.pinned) {
+      const pinnedCount = pinnedVideos.length
+      if (pinnedCount >= 4) {
+        setPinLimitModalOpen(true)
+        return
+      }
+    }
+
+    const res = await api(`/video/${video.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pinned: !video.pinned }),
+    })
     if (res.ok) {
-      setVideos((prev) => prev.filter((v) => v.id !== deletingVideo.id))
-      setPinnedVideos((prev) => prev.filter((v) => v.id !== deletingVideo.id))
+      // Update the appropriate state based on pin status
+      if (res.data.pinned) {
+        // Moving from unpinned to pinned
+        setVideos((prev) => prev.filter((it) => it.id !== video.id))
+        setPinnedVideos((prev) => [...prev, res.data])
+        setPinnedOrder((prev) => [...prev, res.data.id])
+      } else {
+        // Moving from pinned to unpinned  
+        setPinnedVideos((prev) => prev.filter((it) => it.id !== video.id))
+        setVideos((prev) => [...prev, res.data])
+        setPinnedOrder((prev) => prev.filter((id) => id !== video.id))
+      }
+    } else {
+      showAlert('Pin Failed', res.error || 'Failed to update pinned status.')
+    }
+  }
+
+  // Reorder pinned videos on drag end (persisted to backend)
+  const handleDragEnd = async (event) => {
+    // Early return if component unmounted during drag
+    if (!isMountedRef.current) return
+    
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = pinnedOrder.indexOf(active.id)
+    const newIndex = pinnedOrder.indexOf(over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const newOrder = arrayMove(pinnedOrder, oldIndex, newIndex)
+    setPinnedOrder(newOrder)
+
+    // Persist to backend
+    const res = await api('/video/reorder-pins', {
+      method: 'PATCH',
+      body: JSON.stringify({ ordered_ids: newOrder }),
+    })
+    
+    // Only update if still mounted
+    if (!isMountedRef.current) return
+    
+    if (!res.ok) {
+      // Revert on error
+      setPinnedOrder(pinnedOrder)
+      showAlert('Reorder Failed', res.error || 'Failed to save pinned order.')
+    }
+  }
+
+  // Handle delete click: check for Shift key to skip confirmation
+  const handleDeleteClick = (e, video) => {
+    e.stopPropagation()
+    
+    // Shift+click skips confirmation
+    if (e.shiftKey) {
+      performDelete(video.id)
+    } else {
+      setDeletingVideo(video)
+    }
+  }
+
+  // Perform the actual delete operation
+  const performDelete = async (id) => {
+    const res = await api(`/video/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      // Remove from both lists
+      setVideos((prev) => prev.filter((v) => v.id !== id))
+      setPinnedVideos((prev) => prev.filter((v) => v.id !== id))
+      setPinnedOrder((prev) => prev.filter((vid) => vid !== id))
+      
+      // Close modal if needed
       setDeletingVideo(null)
     } else {
-      setError(res.error || 'Failed to delete video.')
+      showAlert('Delete Failed', res.error || 'Failed to delete video.')
       setDeletingVideo(null)
     }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingVideo) return
+    performDelete(deletingVideo.id)
   }
 
   // Load videos on mount
@@ -306,20 +431,29 @@ function MyVideo() {
 
             {pinnedVideos.length === 0 ? (
               <div className="border border-dashed border-light-navbar/30 dark:border-dark-navbar/30 rounded-2xl p-8 text-center text-sm text-neutral-500">
-                No pinned videos. Click the Love icon on any video card below to feature it here.
+                No pinned videos. Click the Pin option on any video card below to feature it here.
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {pinnedVideos.slice(0, 4).map((video) => (
-                  <VideoCard
-                    key={video.id}
-                    video={video}
-                    showActions
-                    onEdit={(v) => setEditingVideo(v)}
-                    onDelete={(v) => setDeletingVideo(v)}
-                  />
-                ))}
-              </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToParentElement]}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext items={pinnedVideos.map((v) => v.id)} strategy={rectSortingStrategy}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {pinnedVideos.slice(0, 4).map((video) => (
+                      <SortableVideoCard
+                        key={video.id}
+                        video={video}
+                        onEdit={(v) => setEditingVideo(v)}
+                        onDelete={(e, v) => handleDeleteClick(e, v)}
+                        onTogglePin={(v) => handleTogglePin(v)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
           </div>
 
@@ -351,7 +485,8 @@ function MyVideo() {
                     video={video}
                     showActions
                     onEdit={(v) => setEditingVideo(v)}
-                    onDelete={(v) => setDeletingVideo(v)}
+                    onDelete={(e, v) => handleDeleteClick(e, v)}
+                    onTogglePin={(v) => handleTogglePin(v)}
                   />
                 ))}
               </div>
@@ -410,9 +545,26 @@ function MyVideo() {
         onConfirm={handleConfirmDelete}
         title="Delete Video"
         message={deletingVideo ? `Delete "${deletingVideo.title || 'this video'}"? This cannot be undone.` : ''}
+        tip="Tip: Hold Shift while clicking delete to skip this confirmation."
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      {/* Pin Limit Warning Modal */}
+      <ConfirmModal
+        isOpen={pinLimitModalOpen}
+        onClose={() => setPinLimitModalOpen(false)}
+        title="Pin Limit Reached"
+        message="You can only pin up to 4 videos. Unpin a video to pin another."
+      />
+
+      {/* Alert Modal */}
+      <ConfirmModal
+        isOpen={!!alertState}
+        onClose={() => setAlertState(null)}
+        title={alertState?.title}
+        message={alertState?.message}
       />
     </div>
   )

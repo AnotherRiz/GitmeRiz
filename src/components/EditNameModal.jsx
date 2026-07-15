@@ -5,28 +5,54 @@ function EditNameModal({ isOpen, onClose, image, onSuccess }) {
   const [title, setTitle] = useState('')
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
+  const [modalIsOpen, setModalIsOpen] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
 
-  // Pre-fill current title when modal opens
+  // Pre-fill current title when modal opens and trigger fade-in
   useEffect(() => {
     if (isOpen && image) {
       setTitle(image.title)
       setError('')
       setUpdating(false)
+      
+      // Trigger fade-in animation with a small delay
+      const timer = setTimeout(() => {
+        setModalIsOpen(true)
+        setIsClosing(false)
+      }, 10)
+      return () => clearTimeout(timer)
     }
   }, [isOpen, image])
+
+  // Reset states when modal fully closes
+  useEffect(() => {
+    if (!isOpen && !isClosing) {
+      setModalIsOpen(false)
+    }
+  }, [isOpen])
 
   // Handle ESC key press
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen && !updating) {
-        onClose()
+      if (e.key === 'Escape' && isOpen && !updating && !isClosing) {
+        handleClose()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, updating, onClose])
+  }, [isOpen, updating, isClosing])
 
-  if (!isOpen || !image) return null
+  const handleClose = () => {
+    setIsClosing(true)
+    setTimeout(() => {
+      setIsClosing(false)
+      setModalIsOpen(false)
+      onClose()
+    }, 300)
+  }
+
+  if (!isOpen && !isClosing) return null
+  if (!image) return null
 
   const handleUpdate = async (e) => {
     e.preventDefault()
@@ -49,7 +75,7 @@ function EditNameModal({ isOpen, onClose, image, onSuccess }) {
     if (res.ok) {
       setUpdating(false)
       onSuccess(res.data)
-      onClose()
+      handleClose()
     } else {
       setError(res.error || 'Failed to update image name.')
       setUpdating(false)
@@ -58,20 +84,25 @@ function EditNameModal({ isOpen, onClose, image, onSuccess }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      className={`fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300 ${
+        modalIsOpen && !isClosing ? 'opacity-100' : 'opacity-0'
+      }`}
+      style={{ pointerEvents: modalIsOpen && !isClosing ? 'auto' : 'none' }}
       onClick={(e) => {
-        if (!updating && e.target === e.currentTarget) {
-          onClose()
+        if (!updating && !isClosing && e.target === e.currentTarget) {
+          handleClose()
         }
       }}
     >
-      <div className="bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-md p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col">
+      <div className={`bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-md p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col transition-all duration-300 ease-out ${
+        modalIsOpen && !isClosing ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+      }`}>
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-light-navbar/10 dark:border-dark-navbar/10">
           <h2 className="text-xl font-bold">Edit Image Name</h2>
           {!updating && (
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
               aria-label="Close modal"
             >
@@ -110,7 +141,7 @@ function EditNameModal({ isOpen, onClose, image, onSuccess }) {
           <div className="flex justify-end gap-3 pt-4 border-t border-light-navbar/10 dark:border-dark-navbar/10">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={updating}
               className="px-4 py-2 text-sm font-semibold rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-light-navbar/10 dark:border-dark-navbar/10 hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-50 transition-colors"
             >
