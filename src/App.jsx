@@ -19,10 +19,16 @@ import Forbidden from './pages/Forbidden'
 function AppContent() {
   const { user } = useAuth()
   const location = useLocation()
-  // Hide Navbar and FloatingDock on error pages
+  // Hide Navbar and FloatingDock on error pages and watch page (errors handled inline there)
   const hideChromeRoutes = ['/401', '/403']
   const isErrorPage = hideChromeRoutes.includes(location.pathname)
-  const showNavbar = !isErrorPage && (!user || location.pathname === '/')
+  const isWatchPage = location.pathname.startsWith('/watch/')
+  
+  // Check if viewing another user's page (not owner)
+  const userPageMatch = location.pathname.match(/^\/([^/]+)\/(gallery|video)$/)
+  const isOtherUserPage = userPageMatch && user && userPageMatch[1] !== user.username
+  
+  const showNavbar = !isErrorPage && !isWatchPage && !isOtherUserPage && (!user || location.pathname === '/')
 
   return (
     <div className="min-h-screen bg-light-body dark:bg-dark-body text-light-text dark:text-dark-text">
@@ -30,7 +36,7 @@ function AppContent() {
       {showNavbar && <Navbar />}
 
       {/* Floating dock handles its own visibility based on route & auth internally */}
-      {!isErrorPage && <FloatingDock />}
+      {!isErrorPage && !isWatchPage && !isOtherUserPage && <FloatingDock />}
 
       <Routes>
         <Route path="/" element={<Home />} />
