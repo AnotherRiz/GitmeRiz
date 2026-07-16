@@ -32,7 +32,7 @@ import ConfirmModal from '../components/ConfirmModal'
  */
 function MyVideo() {
   const { username } = useParams()
-  const _navigate = useNavigate()
+  const navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
 
   // Pinned videos state
@@ -54,6 +54,7 @@ function MyVideo() {
   // Modal states for confirmations and alerts
   const [pinLimitModalOpen, setPinLimitModalOpen] = useState(false)
   const [alertState, setAlertState] = useState(null) // { title, message }
+  const [errorType, setErrorType] = useState(null) // null, '403'
 
   const sentinelRef = useRef(null)
   const isMountedRef = useRef(true)
@@ -382,12 +383,31 @@ function MyVideo() {
   }
 
   // Only the owner may view their own video page
-  if (user.username !== username) {
-    return <Navigate to="/403" replace />
+  const hasAccessError = user.username !== username
+  if (hasAccessError && !errorType) {
+    setErrorType('403')
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-24">
+    <>
+      {/* Error state: 403 Forbidden */}
+      {errorType === '403' && (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-light-body dark:bg-dark-body text-light-text dark:text-dark-text px-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-center">
+            403 | Access Denied
+          </h1>
+          <button
+            onClick={() => navigate('/')}
+            className="px-5 py-2.5 bg-light-navbar dark:bg-dark-navbar hover:opacity-80 text-light-text dark:text-dark-text rounded-lg font-semibold shadow-md transition-opacity text-sm"
+          >
+            Back to Home
+          </button>
+        </div>
+      )}
+
+      {/* Main video page content */}
+      {!errorType && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-24">
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
@@ -568,7 +588,9 @@ function MyVideo() {
         title={alertState?.title}
         message={alertState?.message}
       />
-    </div>
+        </div>
+      )}
+    </>
   )
 }
 
