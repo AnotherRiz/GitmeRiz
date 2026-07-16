@@ -205,7 +205,14 @@ function MyVideo() {
     if (oldIndex === -1 || newIndex === -1) return
 
     const newOrder = arrayMove(pinnedOrder, oldIndex, newIndex)
+    // Optimistic update: update UI immediately
     setPinnedOrder(newOrder)
+    
+    // Reorder pinnedVideos array to match the new order
+    const reorderedVideos = newOrder
+      .map((id) => pinnedVideos.find((v) => v.id === id))
+      .filter(Boolean)
+    setPinnedVideos(reorderedVideos)
 
     // Persist to backend
     const res = await api('/video/reorder-pins', {
@@ -216,11 +223,17 @@ function MyVideo() {
     // Only update if still mounted
     if (!isMountedRef.current) return
     
-    if (!res.ok) {
+    // If the backend returns the reordered data, use it to sync
+    if (res.ok && Array.isArray(res.data)) {
+      setPinnedVideos(res.data)
+      const backendOrder = res.data.map((v) => v.id)
+      setPinnedOrder(backendOrder)
+    } else if (!res.ok) {
       // Revert on error
       setPinnedOrder(pinnedOrder)
       showAlert('Reorder Failed', res.error || 'Failed to save pinned order.')
     }
+    // If success but no array data, keep the optimistic update
   }
 
   // Handle delete click: check for Shift key to skip confirmation
