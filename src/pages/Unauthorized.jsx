@@ -9,7 +9,7 @@ function Unauthorized() {
       </h1>
       <Link
         to="/"
-        className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-semibold shadow-md transition-colors text-sm"
+        className="px-5 py-2.5 bg-light-navbar dark:bg-dark-navbar hover:opacity-80 text-light-text dark:text-dark-text rounded-lg font-semibold shadow-md transition-opacity text-sm"
       >
         Back to Home
       </Link>
