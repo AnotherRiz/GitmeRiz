@@ -32,7 +32,7 @@ import ConfirmModal from '../components/ConfirmModal'
  */
 function MyVideo() {
   const { username } = useParams()
-  const navigate = useNavigate()
+  const _navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
 
   // Pinned videos state
@@ -370,18 +370,7 @@ function MyVideo() {
 
   // Only the owner may view their own video page
   if (user.username !== username) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <h1 className="text-3xl font-bold mb-4">Forbidden</h1>
-        <p className="text-lg opacity-80 mb-8">You can only view your own videos.</p>
-        <button
-          onClick={() => navigate(`/${user.username}/video`)}
-          className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors"
-        >
-          Go to My Videos
-        </button>
-      </div>
-    )
+    return <Navigate to="/403" replace />
   }
 
   return (

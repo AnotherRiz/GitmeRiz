@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
 import {
   DndContext,
   closestCenter,
@@ -285,18 +285,7 @@ function MyGallery() {
 
   // Only the owner may view their own gallery
   if (user.username !== username) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <h1 className="text-3xl font-bold mb-4">Forbidden</h1>
-        <p className="text-lg opacity-80 mb-8">You can only view your own gallery.</p>
-        <button
-          onClick={() => navigate(`/${user.username}/gallery`)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-        >
-          Go to My Gallery
-        </button>
-      </div>
-    )
+    return <Navigate to="/403" replace />
   }
 
   // Safety check: ensure arrays are initialized before filtering
