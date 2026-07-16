@@ -183,7 +183,7 @@ function VideoCard({ video, showActions = false, onEdit, onDelete, onTogglePin }
                     e.preventDefault()
                     e.stopPropagation()
                     setMenuOpen(false)
-                    onDelete?.(video)
+                    onDelete?.(e, video)
                   }}
                   className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-light-body dark:hover:bg-dark-body transition-colors"
                 >

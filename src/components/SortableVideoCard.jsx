@@ -42,7 +42,7 @@ function SortableVideoCard({
         video={video}
         showActions
         onEdit={onEdit}
-        onDelete={onDelete}
+        onDelete={(e, v) => onDelete(e, v)}
         onTogglePin={onTogglePin}
       />
     </div>
