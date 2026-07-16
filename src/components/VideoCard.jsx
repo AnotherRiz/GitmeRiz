@@ -14,8 +14,9 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
  *   - onEdit: Callback when Edit is clicked (only if showActions is true)
  *   - onDelete: Callback when Delete is clicked (only if showActions is true)
  *   - onTogglePin: Callback when Pin/Unpin is clicked (only if showActions is true)
+ *   - disableLink (default false): When true, skip wrapping in <Link> for sortable contexts
  */
-function VideoCard({ video, showActions = false, onEdit, onDelete, onTogglePin }) {
+function VideoCard({ video, showActions = false, onEdit, onDelete, onTogglePin, disableLink = false }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const isProcessing = video.status === 'processing' || video.status.startsWith('processing:')
@@ -225,6 +226,12 @@ function VideoCard({ video, showActions = false, onEdit, onDelete, onTogglePin }
         {cardContent}
       </div>
     )
+  }
+
+  // When disableLink is true, return cardContent directly (no <Link> wrapper)
+  // This is used by SortableVideoCard to handle click navigation itself
+  if (disableLink) {
+    return cardContent
   }
 
   return (

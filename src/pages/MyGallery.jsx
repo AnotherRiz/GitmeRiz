@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Navigate, useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import {
   DndContext,
   closestCenter,
@@ -40,6 +40,7 @@ function MyGallery() {
   const [cursor, setCursor] = useState(null)
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState('')
+  const [errorType, setErrorType] = useState(null) // null, '401', '403'
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isUploadMinimized, setIsUploadMinimized] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -283,24 +284,34 @@ function MyGallery() {
     return <Navigate to="/login" replace />
   }
 
-  // Only the owner may view their own gallery
-  if (user.username !== username) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <h1 className="text-3xl font-bold mb-4">Forbidden</h1>
-        <p className="text-lg opacity-80 mb-8">You can only view your own gallery.</p>
-        <button
-          onClick={() => navigate(`/${user.username}/gallery`)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-        >
-          Go to My Gallery
-        </button>
-      </div>
-    )
+  // Check if user is accessing another user's gallery (403 error)
+  const hasAccessError = user.username !== username
+  if (hasAccessError && !errorType) {
+    setErrorType('403')
   }
 
   // Safety check: ensure arrays are initialized before filtering
   if (!Array.isArray(images) || !Array.isArray(pinnedImages)) {
+    if (errorType) {
+      // Show error page
+      return (
+        <>
+          {errorType === '403' && (
+            <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-light-body dark:bg-dark-body text-light-text dark:text-dark-text px-4">
+              <h1 className="text-2xl sm:text-3xl font-bold text-center">
+                403 | Access Denied
+              </h1>
+              <button
+                onClick={() => navigate('/')}
+                className="px-5 py-2.5 bg-light-navbar dark:bg-dark-navbar hover:opacity-80 text-light-text dark:text-dark-text rounded-lg font-semibold shadow-md transition-opacity text-sm"
+              >
+                Back to Home
+              </button>
+            </div>
+          )}
+        </>
+      )
+    }
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
         <p className="opacity-60">Loading gallery...</p>
@@ -525,7 +536,25 @@ function MyGallery() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-24">
+    <>
+      {/* Error state: 403 Forbidden */}
+      {errorType === '403' && (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-light-body dark:bg-dark-body text-light-text dark:text-dark-text px-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-center">
+            403 | Access Denied
+          </h1>
+          <button
+            onClick={() => navigate('/')}
+            className="px-5 py-2.5 bg-light-navbar dark:bg-dark-navbar hover:opacity-80 text-light-text dark:text-dark-text rounded-lg font-semibold shadow-md transition-opacity text-sm"
+          >
+            Back to Home
+          </button>
+        </div>
+      )}
+
+      {/* Main gallery content - only show if no error */}
+      {!errorType && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-24">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
@@ -810,6 +839,8 @@ function MyGallery() {
         variant="default"
       />
     </div>
+      )}
+    </>
   )
 }
 
