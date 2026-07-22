@@ -13,22 +13,25 @@ import MyGallery from './pages/MyGallery'
 import Video from './pages/Video'
 import MyVideo from './pages/MyVideo'
 import Watch from './pages/Watch'
+import Audio from './pages/Audio'
+import MyAudio from './pages/MyAudio'
+import Listen from './pages/Listen'
 import Unauthorized from './pages/Unauthorized'
 import Forbidden from './pages/Forbidden'
 
 function AppContent() {
   const { user } = useAuth()
   const location = useLocation()
-  // Hide Navbar and FloatingDock on error pages and watch page (errors handled inline there)
+  // Hide Navbar and FloatingDock on error pages and player pages (errors handled inline there)
   const hideChromeRoutes = ['/401', '/403']
   const isErrorPage = hideChromeRoutes.includes(location.pathname)
-  const isWatchPage = location.pathname.startsWith('/watch/')
+  const isPlayerPage = location.pathname.startsWith('/watch/') || location.pathname.startsWith('/listen/')
   
   // Check if viewing another user's page (not owner)
-  const userPageMatch = location.pathname.match(/^\/([^/]+)\/(gallery|video)$/)
+  const userPageMatch = location.pathname.match(/^\/([^/]+)\/(gallery|video|audio)$/)
   const isOtherUserPage = userPageMatch && user && userPageMatch[1] !== user.username
   
-  const showNavbar = !isErrorPage && !isWatchPage && !isOtherUserPage && (!user || location.pathname === '/')
+  const showNavbar = !isErrorPage && !isPlayerPage && !isOtherUserPage && (!user || location.pathname === '/')
 
   return (
     <div className="min-h-screen bg-light-body dark:bg-dark-body text-light-text dark:text-dark-text">
@@ -36,7 +39,7 @@ function AppContent() {
       {showNavbar && <Navbar />}
 
       {/* Floating dock handles its own visibility based on route & auth internally */}
-      {!isErrorPage && !isWatchPage && !isOtherUserPage && <FloatingDock />}
+      {!isErrorPage && !isPlayerPage && !isOtherUserPage && <FloatingDock />}
 
       <Routes>
         <Route path="/" element={<Home />} />
@@ -49,6 +52,9 @@ function AppContent() {
         <Route path="/video" element={<Video />} />
         <Route path="/:username/video" element={<MyVideo />} />
         <Route path="/watch/:shortId" element={<Watch />} />
+        <Route path="/audio" element={<Audio />} />
+        <Route path="/:username/audio" element={<MyAudio />} />
+        <Route path="/listen/:id" element={<Listen />} />
         <Route path="/401" element={<Unauthorized />} />
         <Route path="/403" element={<Forbidden />} />
       </Routes>
