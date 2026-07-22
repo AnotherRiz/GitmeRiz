@@ -22,6 +22,10 @@ const FloatingDock = memo(function FloatingDock() {
     if (path.includes('/video') && !path.startsWith('/video') && user) {
       return location.pathname === `/${user.username}/video`
     }
+    // Special case for My Audio route (dynamic username)
+    if (path.includes('/audio') && !path.startsWith('/audio') && user) {
+      return location.pathname === `/${user.username}/audio`
+    }
     return location.pathname === path
   }
 
@@ -77,7 +81,19 @@ const FloatingDock = memo(function FloatingDock() {
         </svg>
       </Link>
 
-      {/* Divider */}
+      {/* Audio */}
+      <Link to="/audio" className={linkClass('/audio')} title="All Audio">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+        </svg>
+      </Link>
+
+      {/* My Audio */}
+      <Link to={`/${user.username}/audio`} className={linkClass(`/${user.username}/audio`)} title="My Audio">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9-7V5L3 12l9 7z" />
+        </svg>
+      </Link>
       <div className="w-px h-6 bg-light-navbar/20 dark:bg-dark-navbar/20 mx-1" />
 
       {/* Theme Toggle */}
