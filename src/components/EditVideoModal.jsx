@@ -106,7 +106,7 @@ function EditVideoModal({ isOpen, onClose, video, onSuccess }) {
         }
       }}
     >
-      <div className={`bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-md p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col transition-all duration-300 ease-out ${
+      <div className={`bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-xl p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col transition-all duration-300 ease-out ${
         modalIsOpen && !isClosing ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
       }`}>
         {/* Header */}
@@ -126,7 +126,7 @@ function EditVideoModal({ isOpen, onClose, video, onSuccess }) {
         </div>
 
         {/* Content */}
-        <form onSubmit={handleUpdate} className="flex-1 overflow-y-auto mt-4 space-y-4 pr-1">
+        <form onSubmit={handleUpdate} className="flex-1 overflow-y-auto mt-4 space-y-4 pr-1 no-scrollbar">
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm px-4 py-3 rounded-xl">
               {error}
@@ -178,8 +178,8 @@ function EditVideoModal({ isOpen, onClose, video, onSuccess }) {
               onChange={(e) => setDescription(e.target.value)}
               disabled={updating}
               placeholder="Update video description"
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm resize-none"
+              rows={5}
+              className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm resize-none no-scrollbar"
             />
           </div>
 
