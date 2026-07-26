@@ -2,37 +2,40 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { get } from '../lib/api'
+import EditAudioModal from '../components/EditAudioModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
 /**
  * Audio player page.
- * Displays cover art, audio player, title, and description.
+ * Displays cover art, audio player, title with edit button, and description.
+ * Uses short_id-based endpoints matching the Watch page pattern.
  */
 function Listen() {
-  const { id } = useParams()
+  const { shortId } = useParams()
   const navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
   const [audio, setAudio] = useState(null)
   const [errorType, setErrorType] = useState(null) // null, '401', '403', 'generic'
   const [loadingMetadata, setLoadingMetadata] = useState(true)
+  const [editingAudio, setEditingAudio] = useState(null)
   const audioRef = useRef(null)
   const isMountedRef = useRef(true)
 
-  // Get the cover art URL
+  // Get the cover art URL (short_id endpoint)
   const getThumbnailUrl = () => {
     if (audio?.thumbnail_path) {
-      return `${BASE_URL}/audio/${id}/thumbnail`
+      return `${BASE_URL}/audio/thumb/${shortId}`
     }
     return null
   }
 
-  // Get the audio stream URL
+  // Get the audio stream URL (short_id endpoint)
   const getAudioUrl = () => {
-    return `${BASE_URL}/audio/${id}/download`
+    return `${BASE_URL}/audio/download/${shortId}`
   }
 
-  // Fetch audio metadata
+  // Fetch audio metadata using short_id endpoint
   useEffect(() => {
     let active = true
 
@@ -41,7 +44,7 @@ function Listen() {
       setErrorType(null)
 
       try {
-        const res = await get(`/audio/${id}`)
+        const res = await get(`/audio/info/${shortId}`)
 
         if (!active) return
 
@@ -71,7 +74,7 @@ function Listen() {
     return () => {
       active = false
     }
-  }, [id, authLoading, user])
+  }, [shortId, authLoading, user])
 
   // Cleanup ref
   useEffect(() => {
@@ -145,9 +148,9 @@ function Listen() {
 
       {/* Audio player & metadata */}
       {!errorType && audio && (
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
-          {/* Cover art */}
-          <div className="rounded-2xl overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center mb-8 aspect-square max-w-md mx-auto">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
+          {/* Cover art (1st in order) */}
+          <div className="rounded-2xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center mb-8 aspect-square max-w-md mx-auto">
             {getThumbnailUrl() ? (
               <img
                 src={getThumbnailUrl()}
@@ -155,18 +158,13 @@ function Listen() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <svg className="w-24 h-24 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-24 h-24 text-neutral-500 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
               </svg>
             )}
           </div>
 
-          {/* Title */}
-          <h1 className="text-3xl font-bold text-light-text dark:text-dark-text mb-4 text-center">
-            {audio.title}
-          </h1>
-
-          {/* Audio player */}
+          {/* Audio player (2nd in order) */}
           <div className="mb-8 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl p-6">
             <audio
               ref={audioRef}
@@ -178,7 +176,26 @@ function Listen() {
             </audio>
           </div>
 
-          {/* Description */}
+          {/* Title with edit button (3rd in order) */}
+          <div className="mb-6 flex items-start justify-between gap-3">
+            <h1 className="text-3xl font-bold text-light-text dark:text-dark-text">
+              {audio.title}
+            </h1>
+            {user && audio.user_id === user.id && (
+              <button
+                onClick={() => setEditingAudio(audio)}
+                className="flex-shrink-0 p-2 rounded-lg hover:bg-light-navbar dark:hover:bg-dark-navbar transition-colors"
+                title="Edit audio"
+                aria-label="Edit audio"
+              >
+                <svg className="w-5 h-5 text-light-text dark:text-dark-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Description (4th in order) */}
           {audio.description && (
             <div className="bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border p-4 rounded-xl">
               <h2 className="font-semibold text-light-text dark:text-dark-text mb-2">Description</h2>
@@ -189,6 +206,17 @@ function Listen() {
           )}
         </div>
       )}
+
+      {/* Edit Audio Modal */}
+      <EditAudioModal
+        isOpen={!!editingAudio}
+        onClose={() => setEditingAudio(null)}
+        audio={editingAudio}
+        onSuccess={(updated) => {
+          setAudio((prev) => ({ ...prev, ...updated }))
+          setEditingAudio(null)
+        }}
+      />
     </>
   )
 }

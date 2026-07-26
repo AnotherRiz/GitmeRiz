@@ -1,32 +1,86 @@
 import { useState, useEffect, useRef } from 'react'
 import { Navigate, useParams, useNavigate } from 'react-router-dom'
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  rectSortingStrategy,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable'
+import { restrictToParentElement } from '@dnd-kit/modifiers'
 import { useAuth } from '../contexts/AuthContext'
 import { get, api } from '../lib/api'
 import AudioCard from '../components/AudioCard'
+import SortableAudioCard from '../components/SortableAudioCard'
 import UploadAudioModal from '../components/UploadAudioModal'
+import EditAudioModal from '../components/EditAudioModal'
 import ConfirmModal from '../components/ConfirmModal'
 
 /**
  * User's personal audio management page.
- * Displays all audio items (public & private) with upload/delete actions.
+ * Displays pinned audio items (max 8) with drag-to-reorder and a main feed.
+ * Mirrors the MyVideo.jsx pinning pattern adapted for audio.
  */
 function MyAudio() {
   const { username } = useParams()
   const navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
+
+  // Pinned audio state
+  const [pinnedAudio, setPinnedAudio] = useState([])
+  const [pinnedOrder, setPinnedOrder] = useState([])
+
+  // Main feed state
   const [audioItems, setAudioItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [errorType, setErrorType] = useState(null) // null, '403'
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isUploadMinimized, setIsUploadMinimized] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [editingAudio, setEditingAudio] = useState(null)
+  const [deletingAudio, setDeletingAudio] = useState(null)
+
+  // Modal states for confirmations
+  const [pinLimitModalOpen, setPinLimitModalOpen] = useState(false)
   const [alertState, setAlertState] = useState(null)
+  const [errorType, setErrorType] = useState(null) // null, '403'
+
   const isMountedRef = useRef(true)
+
+  // Drag sensors
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   // Helper: show alert modal
   const showAlert = (title, message) => {
     setAlertState({ title, message })
+  }
+
+  // Fetch pinned audio
+  const fetchPinnedAudio = async () => {
+    try {
+      const res = await get('/audio/me/pinned')
+      if (res.ok && isMountedRef.current) {
+        setPinnedAudio(res.data || [])
+        // Update pinned order based on pin_order from backend
+        const orderedIds = (res.data || [])
+          .sort((a, b) => (a.pin_order || 0) - (b.pin_order || 0))
+          .map((a) => a.id)
+        setPinnedOrder(orderedIds)
+      }
+    } catch (err) {
+      console.error('Error fetching pinned audio:', err)
+    }
   }
 
   // Fetch user's audio
@@ -40,9 +94,11 @@ function MyAudio() {
       if (res.ok) {
         // Handle both array and paginated responses
         const items = Array.isArray(res.data) ? res.data : res.data.items || []
-        // Filter to current user's items (superuser might see all)
+        // Filter to current user's items
         const userItems = items.filter((item) => item.user_id === user.id)
-        setAudioItems(userItems)
+        // Filter out pinned items
+        const unpinnedItems = userItems.filter((item) => !item.pinned)
+        setAudioItems(unpinnedItems)
         setError('')
       } else {
         setError(res.error || 'Failed to fetch audio.')
@@ -59,10 +115,120 @@ function MyAudio() {
     }
   }
 
+  // Handle edit success - update audio in both lists
+  const handleEditSuccess = (updated) => {
+    setAudioItems((prev) => prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a)))
+    setPinnedAudio((prev) => prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a)))
+  }
+
+  // Handle pin toggle with limit enforcement (max 8 for audio)
+  const handleTogglePin = async (audio) => {
+    // Check if trying to pin (not unpin) and limit is reached
+    if (!audio.pinned) {
+      const pinnedCount = pinnedAudio.length
+      if (pinnedCount >= 8) {
+        setPinLimitModalOpen(true)
+        return
+      }
+    }
+
+    const res = await api(`/audio/${audio.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pinned: !audio.pinned }),
+    })
+    if (res.ok) {
+      // Update the appropriate state based on pin status
+      if (res.data.pinned) {
+        // Moving from unpinned to pinned
+        setAudioItems((prev) => prev.filter((it) => it.id !== audio.id))
+        setPinnedAudio((prev) => [...prev, res.data])
+        setPinnedOrder((prev) => [...prev, res.data.id])
+      } else {
+        // Moving from pinned to unpinned
+        setPinnedAudio((prev) => prev.filter((it) => it.id !== audio.id))
+        setAudioItems((prev) => [...prev, res.data])
+        setPinnedOrder((prev) => prev.filter((id) => id !== audio.id))
+      }
+    } else {
+      showAlert('Pin Failed', res.error || 'Failed to update pinned status.')
+    }
+  }
+
+  // Reorder pinned audio on drag end (persisted to backend)
+  const handleDragEnd = async (event) => {
+    if (!isMountedRef.current) return
+    
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = pinnedOrder.indexOf(active.id)
+    const newIndex = pinnedOrder.indexOf(over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const newOrder = arrayMove(pinnedOrder, oldIndex, newIndex)
+    // Optimistic update
+    setPinnedOrder(newOrder)
+    
+    // Reorder pinnedAudio array to match the new order
+    const reorderedAudio = newOrder
+      .map((id) => pinnedAudio.find((a) => a.id === id))
+      .filter(Boolean)
+    setPinnedAudio(reorderedAudio)
+
+    // Persist to backend
+    const res = await api('/audio/reorder-pins', {
+      method: 'PATCH',
+      body: JSON.stringify({ ordered_ids: newOrder }),
+    })
+    
+    if (!isMountedRef.current) return
+    
+    if (res.ok && Array.isArray(res.data)) {
+      setPinnedAudio(res.data)
+      const backendOrder = res.data.map((a) => a.id)
+      setPinnedOrder(backendOrder)
+    } else if (!res.ok) {
+      // Revert on error
+      setPinnedOrder(pinnedOrder)
+      showAlert('Reorder Failed', res.error || 'Failed to save pinned order.')
+    }
+  }
+
+  // Handle delete click: check for Shift key to skip confirmation
+  const handleDeleteClick = (e, audio) => {
+    e.stopPropagation()
+    
+    if (e.shiftKey) {
+      performDelete(audio.id)
+    } else {
+      setDeletingAudio(audio)
+    }
+  }
+
+  // Perform the actual delete operation
+  const performDelete = async (id) => {
+    const res = await api(`/audio/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      // Remove from both lists
+      setAudioItems((prev) => prev.filter((a) => a.id !== id))
+      setPinnedAudio((prev) => prev.filter((a) => a.id !== id))
+      setPinnedOrder((prev) => prev.filter((aid) => aid !== id))
+      
+      setDeletingAudio(null)
+    } else {
+      showAlert('Delete Failed', res.error || 'Failed to delete audio.')
+      setDeletingAudio(null)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingAudio) return
+    performDelete(deletingAudio.id)
+  }
+
   // Load audio on mount
   useEffect(() => {
-    if (authLoading) return
-    if (!user) return
+    if (authLoading || !user) return
     
     // Check access first
     const hasAccessError = user.username !== username
@@ -73,6 +239,7 @@ function MyAudio() {
     }
 
     fetchMyAudio()
+    fetchPinnedAudio()
   }, [authLoading, user, username])
 
   // Cleanup
@@ -115,29 +282,8 @@ function MyAudio() {
     )
   }
 
-  // Delete handler
-  const performDelete = async (id) => {
-    const res = await api(`/audio/${id}`, { method: 'DELETE' })
-    if (res.ok) {
-      setAudioItems((prev) => prev.filter((item) => item.id !== id))
-      setDeleteTarget(null)
-    } else {
-      showAlert('Delete Failed', res.error || 'Failed to delete audio.')
-      setDeleteTarget(null)
-    }
-  }
-
   const handleUploadSuccess = (newAudio) => {
     setAudioItems((prev) => [newAudio, ...prev])
-  }
-
-  const handleDeleteClick = (e, audio) => {
-    e.stopPropagation()
-    if (e.shiftKey) {
-      performDelete(audio.id)
-    } else {
-      setDeleteTarget(audio)
-    }
   }
 
   return (
@@ -170,6 +316,44 @@ function MyAudio() {
           </div>
         )}
 
+        {/* Pinned audio section */}
+        {!loading && pinnedAudio.length > 0 && (
+          <>
+            <div className="mb-2">
+              <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Pinned</h2>
+              <p className="text-xs opacity-60 mt-0.5">Drag to reorder your pinned audio ({pinnedAudio.length}/8)</p>
+            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+              modifiers={[restrictToParentElement]}
+            >
+              <SortableContext
+                items={pinnedOrder}
+                strategy={rectSortingStrategy}
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 mb-8">
+                  {pinnedOrder.map((id) => {
+                    const audio = pinnedAudio.find((a) => a.id === id)
+                    return audio ? (
+                      <div key={audio.id} className="p-3 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
+                        <SortableAudioCard
+                          audio={audio}
+                          onEdit={() => setEditingAudio(audio)}
+                          onDelete={(e, a) => handleDeleteClick(e, a)}
+                          onTogglePin={handleTogglePin}
+                        />
+                      </div>
+                    ) : null
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
+            <hr className="my-8 border-neutral-200 dark:border-neutral-800" />
+          </>
+        )}
+
         {/* Loading state */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -191,30 +375,14 @@ function MyAudio() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {audioItems.map((audio) => (
-              <div
-                key={audio.id}
-                className="relative group"
-              >
-                <AudioCard audio={audio} />
-                
-                {/* Actions overlay */}
-                <div className="absolute top-4 right-4 z-10 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                  {/* Visibility badge */}
-                  <div className="px-2 py-1 rounded-full bg-black/60 text-white text-xs font-semibold">
-                    {audio.visibility === 'public' ? '🌐 Public' : '🔒 Private'}
-                  </div>
-                  
-                  {/* Delete button */}
-                  <button
-                    onClick={(e) => handleDeleteClick(e, audio)}
-                    className="p-2 rounded-full bg-black/60 hover:bg-red-600 text-white transition-colors shadow-md"
-                    title="Delete (Shift+click to skip confirmation)"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
+              <div key={audio.id} className="p-3 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
+                <AudioCard
+                  audio={audio}
+                  showActions
+                  onEdit={() => setEditingAudio(audio)}
+                  onDelete={(e, a) => handleDeleteClick(e, a)}
+                  onTogglePin={handleTogglePin}
+                />
               </div>
             ))}
           </div>
@@ -233,17 +401,38 @@ function MyAudio() {
         onMinimize={() => setIsUploadMinimized(true)}
       />
 
+      {/* Edit Audio Modal */}
+      <EditAudioModal
+        isOpen={!!editingAudio}
+        onClose={() => setEditingAudio(null)}
+        audio={editingAudio}
+        onSuccess={(updated) => {
+          handleEditSuccess(updated)
+          setEditingAudio(null)
+        }}
+      />
+
       {/* Delete Confirmation Modal */}
       <ConfirmModal
-        isOpen={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={() => performDelete(deleteTarget?.id)}
+        isOpen={!!deletingAudio}
+        onClose={() => setDeletingAudio(null)}
+        onConfirm={handleConfirmDelete}
         title="Delete Audio"
-        message={deleteTarget ? `Delete "${deleteTarget.title}"?` : ''}
+        message={deletingAudio ? `Delete "${deletingAudio.title}"?` : ''}
         tip="Tip: Hold Shift while clicking delete to skip this confirmation."
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      {/* Pin Limit Warning Modal */}
+      <ConfirmModal
+        isOpen={pinLimitModalOpen}
+        onClose={() => setPinLimitModalOpen(false)}
+        title="Pin Limit Reached"
+        message="You can pin up to 8 audio items. Unpin an existing audio to pin a new one."
+        confirmText="Got it"
+        variant="default"
       />
 
       {/* Alert Modal */}
