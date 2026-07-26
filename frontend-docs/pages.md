@@ -202,3 +202,35 @@ Video player page for streaming and watching a single video.
 - Streams the video via `GET /video/r/{short_id}` (supports HTTP 206 Range requests for scrubbing).
 - Private videos require authentication (cookie/header auth handled by `api.js`).
 - Plyr accent color is set to match the GitmeRiz violet theme via CSS variable `--plyr-color-main`.
+### Page Layout
+
+1. **Video player** — Plyr-based player with controls for play, scrubbing, fullscreen, download, etc.
+2. **Title** — Display name with a 3-dot menu (owner-only, non-owner viewers see just the title).
+3. **Owner actions** (owner-only) — 3-dot vertical menu with a single "Edit" item that opens `EditVideoModal` to update title, description, and visibility.
+4. **Uploader info** (owner-only for now) — Avatar circle (initials fallback) + uploader name below the title. *Note: Non-owner viewing shows no byline unless the API embeds uploader info in the metadata response; this is a backend feature limitation.*
+5. **Description** — Shows description text in a styled card with a date-created line (format: "27 July, 2026"), or "No description" placeholder if empty.
+   - Date created is sourced from the `created_at` field on the video item (ISO 8601 format).
+
+---
+
+## Listen — `/listen/:shortId`
+
+**File:** `Listen.jsx`
+
+Audio player page for streaming and listening to a single audio track.
+
+- Fetches audio metadata via `GET /audio/info/{short_id}`.
+- Renders cover art (thumbnail) if available, else shows a music note placeholder.
+- Audio player using native HTML5 `<audio>` element with full browser controls.
+- Streams the audio via `GET /audio/download/{short_id}`.
+- Private audio requires authentication (cookie/header auth handled by `api.js`).
+
+### Page Layout
+
+1. **Cover art** — Displays audio thumbnail (aspect square) with fallback placeholder.
+2. **Audio player** — Native HTML5 audio element with browser-default controls.
+3. **Title** — Display name with a 3-dot menu (owner-only).
+4. **Owner actions** (owner-only) — 3-dot vertical menu with a single "Edit" item that opens `EditAudioModal` to update title, description, and visibility.
+5. **Uploader info** (owner-only for now) — Avatar circle (initials fallback) + uploader name below the title. *Note: Non-owner viewing shows no byline unless the API embeds uploader info in the metadata response; this is a backend feature limitation.*
+6. **Description** — Shows description text in a styled card with a date-created line (format: "27 July, 2026"), or "No description" placeholder if empty.
+   - Date created is sourced from the `created_at` field on the audio item (ISO 8601 format).

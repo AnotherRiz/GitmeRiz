@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { get } from '../lib/api'
 import EditAudioModal from '../components/EditAudioModal'
+import { formatFullDate } from '../lib/timeAgo'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
@@ -21,6 +22,8 @@ function Listen() {
   const [editingAudio, setEditingAudio] = useState(null)
   const audioRef = useRef(null)
   const isMountedRef = useRef(true)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
 
   // Get the cover art URL (short_id endpoint)
   const getThumbnailUrl = () => {
@@ -34,6 +37,32 @@ function Listen() {
   const getAudioUrl = () => {
     return `${BASE_URL}/audio/download/${shortId}`
   }
+
+  // Close menu when clicking outside / on Esc
+  useEffect(() => {
+    // Close menu when clicking outside
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+
+    // Close menu on Esc key
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && menuOpen) {
+        setMenuOpen(false)
+      }
+    }
+
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('keydown', handleKeyDown)
+      }
+    }
+  }, [menuOpen])
 
   // Fetch audio metadata using short_id endpoint
   useEffect(() => {
@@ -176,34 +205,95 @@ function Listen() {
             </audio>
           </div>
 
-          {/* Title with edit button (3rd in order) */}
+          {/* Title with 3-dot menu (3rd in order) */}
           <div className="mb-6 flex items-start justify-between gap-3">
             <h1 className="text-3xl font-bold text-light-text dark:text-dark-text">
               {audio.title}
             </h1>
             {user && audio.user_id === user.id && (
-              <button
-                onClick={() => setEditingAudio(audio)}
-                className="flex-shrink-0 p-2 rounded-lg hover:bg-light-navbar dark:hover:bg-dark-navbar transition-colors"
-                title="Edit audio"
-                aria-label="Edit audio"
-              >
-                <svg className="w-5 h-5 text-light-text dark:text-dark-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
+              <div className="relative flex-shrink-0" ref={menuRef}>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setMenuOpen((prev) => !prev)
+                  }}
+                  className="p-2 rounded-lg hover:bg-light-navbar dark:hover:bg-dark-navbar transition-colors"
+                  title="Audio options"
+                  aria-label="Audio options"
+                >
+                  <svg className="w-5 h-5 text-light-text dark:text-dark-text" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="5" r="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <circle cx="12" cy="19" r="2" />
+                  </svg>
+                </button>
+
+                {/* Dropdown menu */}
+                {menuOpen && (
+                  <div
+                    className="absolute top-10 right-0 z-30 bg-light-navbar dark:bg-dark-navbar border border-light-card-border dark:border-dark-card-border rounded-xl shadow-2xl py-1 min-w-[100px] text-light-text dark:text-dark-text"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setMenuOpen(false)
+                        setEditingAudio(audio)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-light-body dark:hover:bg-dark-body transition-colors"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Description (4th in order) */}
-          {audio.description && (
-            <div className="bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border p-4 rounded-xl">
-              <h2 className="font-semibold text-light-text dark:text-dark-text mb-2">Description</h2>
+          {/* Avatar + Name row */}
+          {user && audio.user_id === user.id && (
+            <div className="mb-6 flex items-center gap-2.5">
+              {/* Avatar circle with initials fallback */}
+              <div className="w-8 h-8 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                {user.name
+                  ? user.name
+                      .split(' ')
+                      .map((n) => n[0])
+                      .join('')
+                      .toUpperCase()
+                      .slice(0, 2)
+                  : '?'}
+              </div>
+              <span className="text-sm font-medium text-light-text dark:text-dark-text">
+                {user.name}
+              </span>
+            </div>
+          )}
+
+          {/* Description block (4th in order) */}
+          <div className="bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border p-4 rounded-xl">
+            {/* Date created line */}
+            {audio.created_at && (
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
+                {formatFullDate(audio.created_at)}
+              </p>
+            )}
+            {/* Description text */}
+            {audio.description ? (
               <p className="text-sm text-neutral-500 dark:text-neutral-400 whitespace-pre-wrap">
                 {audio.description}
               </p>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 italic opacity-70">
+                No description
+              </p>
+            )}
+          </div>
         </div>
       )}
 
