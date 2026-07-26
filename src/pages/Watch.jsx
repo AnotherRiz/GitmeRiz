@@ -4,6 +4,7 @@ import Plyr from 'plyr'
 import { useAuth } from '../contexts/AuthContext'
 import { get } from '../lib/api'
 import EditVideoModal from '../components/EditVideoModal'
+import { formatFullDate } from '../lib/timeAgo'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
@@ -22,10 +23,38 @@ function Watch() {
   const [errorType, setErrorType] = useState(null) // null, '401', '403', 'generic'
   const [loadingMetadata, setLoadingMetadata] = useState(true)
   const [editingVideo, setEditingVideo] = useState(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
 
   // Video source URL (backend supports range requests)
   const videoSrc = `${BASE_URL}/video/r/${shortId}`
   const thumbnailSrc = `${BASE_URL}/video/t/${shortId}`
+
+  // Close menu when clicking outside / on Esc
+  useEffect(() => {
+    // Close menu when clicking outside
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+
+    // Close menu on Esc key
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && menuOpen) {
+        setMenuOpen(false)
+      }
+    }
+
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('keydown', handleKeyDown)
+      }
+    }
+  }, [menuOpen])
 
   // Check access permissions and fetch video metadata
   useEffect(() => {
@@ -65,7 +94,7 @@ function Watch() {
           setLoadingMetadata(false)
           return
         }
-      } catch (err) {
+      } catch (_err) {
         if (!active) return
         setErrorType('generic')
         setLoadingMetadata(false)
@@ -87,7 +116,7 @@ function Watch() {
             short_id: shortId,
           })
         }
-      } catch (err) {
+      } catch (_err) {
         if (!active) return
         // Fallback on metadata fetch failure
         setVideo({
@@ -259,23 +288,89 @@ function Watch() {
                 {video?.title || shortId}
               </h1>
               {user && video?.user_id === user.id && (
-                <button
-                  onClick={() => setEditingVideo(video)}
-                  className="flex-shrink-0 p-2 rounded-lg hover:bg-light-navbar dark:hover:bg-dark-navbar transition-colors"
-                  title="Edit video"
-                  aria-label="Edit video"
-                >
-                  <svg className="w-5 h-5 text-light-text dark:text-dark-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
+                <div className="relative flex-shrink-0" ref={menuRef}>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setMenuOpen((prev) => !prev)
+                    }}
+                    className="p-2 rounded-lg hover:bg-light-navbar dark:hover:bg-dark-navbar transition-colors"
+                    title="Video options"
+                    aria-label="Video options"
+                  >
+                    <svg className="w-5 h-5 text-light-text dark:text-dark-text" fill="currentColor" viewBox="0 0 24 24">
+                      <circle cx="12" cy="5" r="2" />
+                      <circle cx="12" cy="12" r="2" />
+                      <circle cx="12" cy="19" r="2" />
+                    </svg>
+                  </button>
+
+                  {/* Dropdown menu */}
+                  {menuOpen && (
+                    <div
+                      className="absolute top-10 right-0 z-30 bg-light-navbar dark:bg-dark-navbar border border-light-card-border dark:border-dark-card-border rounded-xl shadow-2xl py-1 min-w-[100px] text-light-text dark:text-dark-text"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setMenuOpen(false)
+                          setEditingVideo(video)
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-light-body dark:hover:bg-dark-body transition-colors"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-            {video?.description && (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-3 whitespace-pre-wrap bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border p-4 rounded-xl">
-                {video.description}
-              </p>
+
+            {/* Avatar + Name row */}
+            {user && video?.user_id === user.id && (
+              <div className="flex items-center gap-2.5 mt-3">
+                {/* Avatar circle with initials fallback */}
+                <div className="w-8 h-8 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                  {user.name
+                    ? user.name
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2)
+                    : '?'}
+                </div>
+                <span className="text-sm font-medium text-light-text dark:text-dark-text">
+                  {user.name}
+                </span>
+              </div>
             )}
+
+            {/* Description block */}
+            <div className="mt-4 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border p-4 rounded-xl">
+              {/* Date created line */}
+              {video?.created_at && (
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
+                  {formatFullDate(video.created_at)}
+                </p>
+              )}
+              {/* Description text */}
+              {video?.description ? (
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 whitespace-pre-wrap">
+                  {video.description}
+                </p>
+              ) : (
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 italic opacity-70">
+                  No description
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}

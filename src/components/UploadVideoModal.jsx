@@ -425,7 +425,7 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
         }
       }}
     >
-      <div className={`bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-lg p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col transition-all duration-300 ease-out ${
+      <div className={`bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-xl p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col transition-all duration-300 ease-out ${
         isClosing ? 'opacity-0 scale-95' : modalIsOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
       }`}>
         {/* Header */}
@@ -486,7 +486,7 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={uploading}
                 placeholder="Video description"
-                rows={3}
+                rows={5}
                 className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm resize-none"
               />
             </div>

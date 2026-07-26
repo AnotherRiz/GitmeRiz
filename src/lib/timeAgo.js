@@ -45,3 +45,23 @@ export function formatTimeAgo(dateInput) {
     return diffYears === 1 ? '1 year ago' : `${diffYears} years ago`
   }
 }
+
+/**
+ * Format a date as "27 July, 2026" (day, full month name, comma, year).
+ * @param {string|Date} dateInput - ISO 8601 string or Date object
+ * @returns {string} Formatted date string (e.g., "27 July, 2026") or empty string if invalid
+ */
+export function formatFullDate(dateInput) {
+  if (!dateInput) return ''
+
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
+
+  if (isNaN(date.getTime())) {
+    return ''
+  }
+
+  const day = date.getDate()
+  const month = date.toLocaleDateString('en-US', { month: 'long' })
+  const year = date.getFullYear()
+  return `${day} ${month}, ${year}`
+}

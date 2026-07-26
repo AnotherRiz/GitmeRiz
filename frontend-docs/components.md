@@ -284,3 +284,148 @@ Behavior:
 - Shows inline error messages if submission fails or title is empty.
 - Save button disabled while submitting.
 
+
+---
+
+## AudioCard
+
+**File:** `AudioCard.jsx`
+
+Reusable audio card component for displaying audio tracks in grids (public feed and private galleries).
+
+**Props:**
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `audio` | `object` | The audio object (`{ id, title, short_id, visibility, created_at, ... }`) |
+| `showActions` | `boolean` | Default `false`. If `true`, displays owner action dropdown (Edit/Delete/Pin) |
+| `onEdit` | `(audio) => void` | Called when Edit is clicked (only if `showActions` is true) |
+| `onDelete` | `(audio) => void` | Called when Delete is clicked (only if `showActions` is true) |
+| `onTogglePin` | `(audio) => void` | Called when Pin/Unpin is clicked (only if `showActions` is true) |
+| `disableLink` | `boolean` | Default `false`. When `true`, skips wrapping in `<Link>` (used by SortableAudioCard) |
+
+Behavior:
+
+- Displays a **thumbnail** (cover art) using the WebP preview, or a music note placeholder icon if no thumbnail.
+- **Visibility badge** (top-left): Shows a lock icon for private audio, an eye icon for public audio.
+- **Hover play overlay**: A centered play button appears on hover.
+- **Three-dot (⋮) actions button** (top-right, owner actions only):
+  - Only renders when `showActions` is `true`.
+  - Dropdown menu with Edit, Pin/Unpin, and Delete options.
+  - Closes on outside click or Esc key.
+- **Title and time-ago**: Displays the audio title with `line-clamp-2` wrapping and a relative timestamp below (e.g., "3 days ago").
+- **Styling**: Plain `block` wrapper with no background—the thumbnail and title are the only visible elements (matches VideoCard behavior).
+- When `disableLink` is `true`, renders the card content without a `<Link>` wrapper (used by `SortableAudioCard` for drag-and-drop contexts).
+
+---
+
+## SortableAudioCard
+
+**File:** `SortableAudioCard.jsx`
+
+A draggable audio card for the pinned section of `MyAudio` page. Wraps `AudioCard` with drag-and-drop functionality.
+
+**Props:**
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `audio` | `object` | The audio item being dragged |
+| `onEdit` | `(audio) => void` | Edit handler |
+| `onDelete` | `(e, audio) => void` | Delete handler |
+| `onTogglePin` | `(audio) => void` | Pin toggle handler |
+
+Behavior:
+
+- Uses `useSortable` from `@dnd-kit/sortable` for drag operations.
+- Renders `AudioCard` with `disableLink={true}` and `showActions={true}`.
+- On click (non-drag), navigates to `/listen/{short_id}` via `useNavigate()`.
+
+---
+
+## EditAudioModal
+
+**File:** `EditAudioModal.jsx`
+
+Modal for editing audio metadata (title, description, visibility). Reuses the design and layout of `EditVideoModal`.
+
+**Props:**
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `isOpen` | `boolean` | Controls visibility |
+| `onClose` | `() => void` | Close handler |
+| `audio` | `object` | The audio being edited (`{ id, short_id, title, description, visibility, ... }`) |
+| `onSuccess` | `(updatedAudio) => void` | Called with the server's updated audio object |
+
+Behavior:
+
+- **Thumbnail preview** (read-only): Displays the audio's cover art thumbnail (if available), or a music note placeholder. Image load errors are silently ignored.
+- **Audio Title** (required): Text input pre-filled with `audio.title`. Non-empty validation; Save is disabled if empty or unchanged.
+- **Description** (optional): Textarea pre-filled with `audio.description`. Supports multi-line input.
+- **Visibility toggle**: Private/Public buttons. Pre-filled with `audio.visibility`.
+- **Form submission**: Sends `PATCH /audio/{id}` with `{ title, description, visibility }` (the unified audio update endpoint).
+- Closes on Esc key (when not saving) and on backdrop click.
+- Shows inline error messages if submission fails or title is empty.
+- Save button disabled while submitting.
+
+---
+
+## UploadVideoModal
+
+**File:** `UploadVideoModal.jsx`
+
+Modal for uploading one or more video files with metadata (title, description, visibility). Supports drag-and-drop, multi-file selection, and real-time upload progress.
+
+**Props:**
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `isOpen` | `boolean` | Whether the modal is open |
+| `isMinimized` | `boolean` | Whether it's minimized during an active upload |
+| `onClose` | `() => void` | Fully close the modal |
+| `onSuccess` | `(uploadedItem) => void` | Called per successful upload with the created item |
+| `onMinimize` | `() => void` | Minimize while an upload runs in the background |
+
+Behavior:
+
+- **Bulk upload**: Select up to 5 video files at once via drag-and-drop or file picker.
+- **Format support**: MP4, WebM, MOV, AVI, MKV.
+- **Per-file progress**: Shows upload progress bar and upload percentage per file.
+- **Metadata** (for single uploads): Title and description inputs. For bulk uploads, metadata is not displayed (same title and description applied to all selected files).
+- **Visibility toggle**: Private/Public buttons; defaults to Private.
+- **Minimize**: While uploading, ESC or the Minimize button hides the modal and shows a floating card (bottom-right) with upload progress. Can click "Show details" to expand the modal again.
+- **Modal width**: `max-w-xl` (wider than previous `max-w-lg`).
+- **Description field**: `rows={5}` (taller than previous `rows={3}`) for more comfortable editing.
+- **Upload API**: Posts to `POST /video` with `multipart/form-data`; responses return `202 Accepted` for background processing.
+
+---
+
+## UploadAudioModal
+
+**File:** `UploadAudioModal.jsx`
+
+Modal for uploading a single audio file with metadata (title, description, optional cover art thumbnail, visibility).
+
+**Props:**
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `isOpen` | `boolean` | Whether the modal is open |
+| `isMinimized` | `boolean` | Whether it's minimized during an active upload |
+| `onClose` | `() => void` | Fully close the modal |
+| `onSuccess` | `(uploadedItem) => void` | Called on successful upload with the created item |
+| `onMinimize` | `() => void` | Minimize while an upload runs in the background |
+
+Behavior:
+
+- **Audio file upload**: Select one audio file via drag-and-drop or file picker.
+- **Format support**: MP3, M4A, AAC, OGG, WAV, FLAC.
+- **Metadata**:
+  - **Title** (required): Auto-filled from filename if not provided.
+  - **Description** (optional): Textarea for additional details.
+  - **Cover art** (optional): Separate drag-and-drop zone for uploading a thumbnail image (JPG, PNG, WebP, GIF).
+- **Visibility toggle**: Private/Public buttons; defaults to Private.
+- **Minimize**: While uploading, ESC or the Minimize button hides the modal and shows a floating card (bottom-right) with upload progress.
+- **Modal width**: `max-w-xl` (wider than previous `max-w-lg`).
+- **Description field**: `rows={5}` (taller than previous `rows={3}`) for more comfortable editing.
+- **Upload API**: Posts to `POST /audio` with `multipart/form-data`; responses return `201 Created` or `202 Accepted` depending on backend state.

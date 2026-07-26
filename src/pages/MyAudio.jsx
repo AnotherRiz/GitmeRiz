@@ -337,14 +337,13 @@ function MyAudio() {
                   {pinnedOrder.map((id) => {
                     const audio = pinnedAudio.find((a) => a.id === id)
                     return audio ? (
-                      <div key={audio.id} className="p-3 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
-                        <SortableAudioCard
-                          audio={audio}
-                          onEdit={() => setEditingAudio(audio)}
-                          onDelete={(e, a) => handleDeleteClick(e, a)}
-                          onTogglePin={handleTogglePin}
-                        />
-                      </div>
+                      <SortableAudioCard
+                        key={audio.id}
+                        audio={audio}
+                        onEdit={() => setEditingAudio(audio)}
+                        onDelete={(e, a) => handleDeleteClick(e, a)}
+                        onTogglePin={handleTogglePin}
+                      />
                     ) : null
                   })}
                 </div>
@@ -375,15 +374,14 @@ function MyAudio() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {audioItems.map((audio) => (
-              <div key={audio.id} className="p-3 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
-                <AudioCard
-                  audio={audio}
-                  showActions
-                  onEdit={() => setEditingAudio(audio)}
-                  onDelete={(e, a) => handleDeleteClick(e, a)}
-                  onTogglePin={handleTogglePin}
-                />
-              </div>
+              <AudioCard
+                key={audio.id}
+                audio={audio}
+                showActions
+                onEdit={() => setEditingAudio(audio)}
+                onDelete={(e, a) => handleDeleteClick(e, a)}
+                onTogglePin={handleTogglePin}
+              />
             ))}
           </div>
         )}

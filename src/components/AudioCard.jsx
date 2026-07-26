@@ -194,7 +194,7 @@ function AudioCard({ audio, showActions = false, onEdit, onDelete, onTogglePin, 
   return (
     <Link
       to={`/listen/${audio.short_id}`}
-      className="block p-3 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300"
+      className="block"
     >
       {cardContent}
     </Link>
