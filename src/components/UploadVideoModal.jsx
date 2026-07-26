@@ -487,7 +487,7 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
                 disabled={uploading}
                 placeholder="Video description"
                 rows={5}
-                className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm resize-none no-scrollbar"
               />
             </div>
           )}

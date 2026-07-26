@@ -115,7 +115,7 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
         }
       }}
     >
-      <div className={`bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-md p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col transition-all duration-300 ease-out ${
+      <div className={`bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 w-full max-w-xl p-6 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh] flex flex-col transition-all duration-300 ease-out ${
         modalIsOpen && !isClosing ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
       }`}>
         {/* Header */}
@@ -135,20 +135,20 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
         </div>
 
         {/* Content */}
-        <form onSubmit={handleUpdate} className="flex-1 overflow-y-auto mt-4 space-y-4 pr-1">
+        <form onSubmit={handleUpdate} className="flex-1 overflow-y-auto mt-4 space-y-4 pr-1 no-scrollbar">
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm px-4 py-3 rounded-xl">
               {error}
             </div>
           )}
 
-          {/* Thumbnail preview (if available) */}
-          {getThumbnailUrl() && (
-            <div className="space-y-1">
-              <label className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
-                Cover Art
-              </label>
-              <div className="aspect-square w-full rounded-xl overflow-hidden bg-neutral-200 dark:bg-neutral-800">
+          {/* Thumbnail preview (cover art) */}
+          <div className="space-y-1">
+            <label className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
+              Cover Art
+            </label>
+            <div className="aspect-square w-full rounded-xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
+              {getThumbnailUrl() ? (
                 <img
                   src={getThumbnailUrl()}
                   alt={audio.title || 'Audio cover'}
@@ -157,9 +157,13 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
                     e.target.style.display = 'none'
                   }}
                 />
-              </div>
+              ) : (
+                <svg className="w-12 h-12 text-neutral-500 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                </svg>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Audio Title */}
           <div className="space-y-1">
@@ -189,8 +193,8 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
               onChange={(e) => setDescription(e.target.value)}
               disabled={updating}
               placeholder="Update audio description"
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm resize-none"
+              rows={5}
+              className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm resize-none no-scrollbar"
             />
           </div>
 
