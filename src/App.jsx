@@ -54,7 +54,7 @@ function AppContent() {
         <Route path="/watch/:shortId" element={<Watch />} />
         <Route path="/audio" element={<Audio />} />
         <Route path="/:username/audio" element={<MyAudio />} />
-        <Route path="/listen/:id" element={<Listen />} />
+        <Route path="/listen/:shortId" element={<Listen />} />
         <Route path="/401" element={<Unauthorized />} />
         <Route path="/403" element={<Forbidden />} />
       </Routes>

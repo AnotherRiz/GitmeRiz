@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Plyr from 'plyr'
 import { useAuth } from '../contexts/AuthContext'
 import { get } from '../lib/api'
+import EditVideoModal from '../components/EditVideoModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
@@ -20,6 +21,7 @@ function Watch() {
   const [video, setVideo] = useState(null)
   const [errorType, setErrorType] = useState(null) // null, '401', '403', 'generic'
   const [loadingMetadata, setLoadingMetadata] = useState(true)
+  const [editingVideo, setEditingVideo] = useState(null)
 
   // Video source URL (backend supports range requests)
   const videoSrc = `${BASE_URL}/video/r/${shortId}`
@@ -252,9 +254,23 @@ function Watch() {
 
           {/* Video info */}
           <div className="mt-6">
-            <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">
-              {video?.title || shortId}
-            </h1>
+            <div className="flex items-start justify-between gap-3">
+              <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">
+                {video?.title || shortId}
+              </h1>
+              {user && video?.user_id === user.id && (
+                <button
+                  onClick={() => setEditingVideo(video)}
+                  className="flex-shrink-0 p-2 rounded-lg hover:bg-light-navbar dark:hover:bg-dark-navbar transition-colors"
+                  title="Edit video"
+                  aria-label="Edit video"
+                >
+                  <svg className="w-5 h-5 text-light-text dark:text-dark-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
+            </div>
             {video?.description && (
               <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-3 whitespace-pre-wrap bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border p-4 rounded-xl">
                 {video.description}
@@ -263,6 +279,17 @@ function Watch() {
           </div>
         </div>
       )}
+
+      {/* Edit Video Modal */}
+      <EditVideoModal
+        isOpen={!!editingVideo}
+        onClose={() => setEditingVideo(null)}
+        video={editingVideo}
+        onSuccess={(updated) => {
+          setVideo((prev) => ({ ...prev, ...updated }))
+          setEditingVideo(null)
+        }}
+      />
     </>
   )
 }

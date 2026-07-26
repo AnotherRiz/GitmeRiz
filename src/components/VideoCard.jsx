@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { formatTimeAgo } from '../lib/timeAgo'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
@@ -24,9 +25,7 @@ function VideoCard({ video, showActions = false, onEdit, onDelete, onTogglePin, 
     ? parseInt(video.status.split(':')[1])
     : (video.processing_progress !== undefined ? video.processing_progress : 0);
   const isPrivate = video.visibility === 'private'
-  const displayTitle = video.title
-    ? video.title.length > 60 ? video.title.substring(0, 60) + '...' : video.title
-    : video.original_filename || 'Untitled Video'
+  const displayTitle = video.title || video.original_filename || 'Untitled Video'
 
   const thumbnailUrl = `${BASE_URL}/video/t/${video.short_id}`
 
@@ -122,14 +121,37 @@ function VideoCard({ video, showActions = false, onEdit, onDelete, onTogglePin, 
           </div>
         )}
 
-        {/* Actions dropdown button (top-right, hover only, owner actions) */}
+        {/* Hover play button overlay (only for active videos) */}
+        {!isProcessing && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+            <div className="backdrop-blur-md bg-white/20 p-3.5 rounded-full transform scale-75 group-hover:scale-100 transition-transform duration-300">
+              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Video title and actions row */}
+      <div className="mt-2 px-0.5 flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <h3
+            className="text-sm font-medium text-light-text dark:text-dark-text line-clamp-2"
+            title={video.title || video.original_filename}
+          >
+            {displayTitle}
+          </h3>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {formatTimeAgo(video.created_at)}
+          </p>
+        </div>
+
+        {/* Actions dropdown button (always visible in title row for owner actions) */}
         {!isProcessing && showActions && (
           <div
-            className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            className="relative flex-shrink-0"
             ref={menuRef}
-            style={{
-              opacity: menuOpen ? 1 : undefined,
-            }}
           >
             <button
               onClick={(e) => {
@@ -137,7 +159,7 @@ function VideoCard({ video, showActions = false, onEdit, onDelete, onTogglePin, 
                 e.stopPropagation()
                 setMenuOpen((prev) => !prev)
               }}
-              className="p-1.5 rounded-lg bg-black/60 text-white shadow-md hover:bg-black/80 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-light-navbar dark:hover:bg-dark-navbar text-light-text dark:text-dark-text transition-colors"
               title="Video options"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -194,27 +216,6 @@ function VideoCard({ video, showActions = false, onEdit, onDelete, onTogglePin, 
             )}
           </div>
         )}
-
-        {/* Hover play button overlay (only for active videos) */}
-        {!isProcessing && (
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-            <div className="backdrop-blur-md bg-white/20 p-3.5 rounded-full transform scale-75 group-hover:scale-100 transition-transform duration-300">
-              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Video title */}
-      <div className="mt-2 px-0.5">
-        <h3
-          className="text-sm font-medium text-light-text dark:text-dark-text truncate"
-          title={video.title || video.original_filename}
-        >
-          {displayTitle}
-        </h3>
       </div>
     </div>
   )
