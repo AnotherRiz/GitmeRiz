@@ -234,6 +234,11 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
     setSelectedCoverArt((prev) => prev.filter((item) => item.id !== fileId))
   }
 
+  const handleRemoveAudio = () => {
+    setSelectedAudio(null)
+    setTitle('')
+  }
+
   const handleUpload = async (e) => {
     e.preventDefault()
     if (!selectedAudio) {
