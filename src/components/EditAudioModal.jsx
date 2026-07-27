@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { api } from '../lib/api'
+import ConfirmModal from './ConfirmModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
 /**
- * Modal for editing audio metadata (title, description, visibility).
- * Pattern mirrors EditVideoModal but adapted for audio items.
+ * Modal for editing audio metadata (title, description, visibility) and managing multiple cover art.
+ * Pattern mirrors EditVideoModal but adapted for audio items with multi-thumbnail support.
  */
 function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
   const [title, setTitle] = useState('')
@@ -15,6 +16,10 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
   const [error, setError] = useState('')
   const [modalIsOpen, setModalIsOpen] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
+  const [thumbnails, setThumbnails] = useState([]) // Array of thumbnail objects
+  const [loadingThumbnails, setLoadingThumbnails] = useState(false)
+  const [deletingThumbnailId, setDeletingThumbnailId] = useState(null)
+  const [confirmDeleteThumbnail, setConfirmDeleteThumbnail] = useState(null)
 
   // Pre-fill current values when modal opens and trigger fade-in
   useEffect(() => {
@@ -24,6 +29,11 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
       setVisibility(audio.visibility || 'private')
       setError('')
       setUpdating(false)
+      setDeletingThumbnailId(null)
+      setConfirmDeleteThumbnail(null)
+      
+      // Fetch thumbnails for this audio
+      fetchThumbnails(audio.id)
       
       // Trigger fade-in animation with a small delay
       const timer = setTimeout(() => {
@@ -61,6 +71,64 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
     }, 300)
   }
 
+  const fetchThumbnails = async (audioId) => {
+    setLoadingThumbnails(true)
+    const res = await api(`/audio/${audioId}/thumbnails`, {
+      method: 'GET',
+    })
+    setLoadingThumbnails(false)
+
+    if (res.ok && Array.isArray(res.data)) {
+      setThumbnails(res.data)
+    } else {
+      setThumbnails([])
+    }
+  }
+
+  const handleSetPrimaryThumbnail = async (thumbnailId) => {
+    if (!audio) return
+
+    const res = await api(`/audio/${audio.id}/thumbnails/${thumbnailId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    })
+
+    if (res.ok) {
+      // Update local state
+      setThumbnails((prev) =>
+        prev.map((t) => ({
+          ...t,
+          is_primary: t.id === thumbnailId,
+        }))
+      )
+    } else {
+      setError(res.error || 'Failed to set primary thumbnail')
+    }
+  }
+
+  const handleDeleteThumbnail = async (thumbnailId) => {
+    if (!audio) return
+
+    setDeletingThumbnailId(thumbnailId)
+
+    const res = await api(`/audio/${audio.id}/thumbnails/${thumbnailId}`, {
+      method: 'DELETE',
+    })
+
+    setDeletingThumbnailId(null)
+
+    if (res.ok) {
+      // Remove from local state
+      setThumbnails((prev) => prev.filter((t) => t.id !== thumbnailId))
+      setConfirmDeleteThumbnail(null)
+    } else {
+      setError(res.error || 'Failed to delete thumbnail')
+    }
+  }
+
   if (!isOpen && !isClosing) return null
   if (!audio) return null
 
@@ -94,13 +162,6 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
       setError(res.error || 'Failed to update audio.')
       setUpdating(false)
     }
-  }
-
-  const getThumbnailUrl = () => {
-    if (audio.thumbnail_path) {
-      return `${BASE_URL}/audio/${audio.id}/thumbnail`
-    }
-    return null
   }
 
   return (
@@ -142,33 +203,76 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
             </div>
           )}
 
-          {/* Thumbnail preview (cover art) */}
-          <div className="space-y-1">
+          {/* Thumbnails Management Section */}
+          <div className="space-y-2">
             <label className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
               Cover Art
             </label>
-            <div className="aspect-square w-full rounded-xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center">
-              {getThumbnailUrl() ? (
-                <img
-                  src={getThumbnailUrl()}
-                  alt={audio.title || 'Audio cover'}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.style.display = 'none'
-                  }}
-                />
-              ) : (
-                <svg className="w-12 h-12 text-neutral-500 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                </svg>
-              )}
-            </div>
+            {loadingThumbnails ? (
+              <div className="text-center py-8 text-sm text-neutral-500">
+                Loading cover art...
+              </div>
+            ) : thumbnails.length > 0 ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 gap-2">
+                  {thumbnails.map((thumb) => (
+                    <div key={thumb.id} className="relative group">
+                      <div className="aspect-square rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+                        <img
+                          src={`${BASE_URL}/audio/${audio.id}/thumbnails/${thumb.id}`}
+                          alt="Cover art"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none'
+                          }}
+                        />
+                      </div>
+
+                      {/* Primary badge */}
+                      {thumb.is_primary && (
+                        <div className="absolute top-1 left-1 bg-violet-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                          Primary
+                        </div>
+                      )}
+
+                      {/* Hover actions */}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-lg">
+                        {!thumb.is_primary && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetPrimaryThumbnail(thumb.id)}
+                            disabled={updating || deletingThumbnailId === thumb.id}
+                            className="px-2 py-1 text-xs font-semibold bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors disabled:opacity-50"
+                            title="Set as primary"
+                          >
+                            Set Primary
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteThumbnail(thumb.id)}
+                          disabled={updating || deletingThumbnailId === thumb.id}
+                          className="px-2 py-1 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
+                          title="Delete cover art"
+                        >
+                          {deletingThumbnailId === thumb.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-light-body/20 dark:bg-dark-body/20 border border-light-navbar/10 dark:border-dark-navbar/10 rounded-xl text-sm text-neutral-500">
+                No cover art yet
+              </div>
+            )}
           </div>
 
           {/* Audio Title */}
           <div className="space-y-1">
             <label htmlFor="edit-audio-title" className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
-              Audio Title
+              Title (Required)
             </label>
             <input
               id="edit-audio-title"
@@ -256,6 +360,22 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
           </div>
         </form>
       </div>
+
+      {/* Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={!!confirmDeleteThumbnail}
+        title="Delete Cover Art?"
+        message="Are you sure you want to delete this cover art? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={() => {
+          if (confirmDeleteThumbnail) {
+            handleDeleteThumbnail(confirmDeleteThumbnail)
+          }
+        }}
+        onCancel={() => setConfirmDeleteThumbnail(null)}
+        isDestructive
+      />
     </div>
   )
 }

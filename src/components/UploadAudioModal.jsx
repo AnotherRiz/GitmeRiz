@@ -3,6 +3,8 @@ import { useState, useRef, useEffect } from 'react'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 const ALLOWED_AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.aac', '.ogg', '.wav', '.flac']
 const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+const MAX_COVER_ART_FILES = 20
+const MAX_COVER_ART_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
 // Helper to format file size
 const formatBytes = (bytes) => {
@@ -13,9 +15,41 @@ const formatBytes = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
+/**
+ * CoverArtPreview Component - Displays a single cover art file card with remove button.
+ */
+function CoverArtPreview({ file, fileId, onRemove, uploading }) {
+  return (
+    <div className="relative flex flex-col p-2 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-lg group shadow-sm">
+      <div className="relative aspect-square rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex flex-col items-center justify-center p-2 text-center">
+        {/* Cover Art Preview */}
+        <img
+          src={URL.createObjectURL(file)}
+          alt="Cover art preview"
+          className="w-full h-full object-cover"
+        />
+        
+        {/* Delete button */}
+        {!uploading && (
+          <button
+            type="button"
+            onClick={() => onRemove(fileId)}
+            className="absolute inset-0 bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"
+            title="Remove cover art"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
   const [selectedAudio, setSelectedAudio] = useState(null)
-  const [selectedThumbnail, setSelectedThumbnail] = useState(null)
+  const [selectedCoverArt, setSelectedCoverArt] = useState([]) // Array of { file, id }
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [visibility, setVisibility] = useState('private')
@@ -23,9 +57,9 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
   const [dragActiveAudio, setDragActiveAudio] = useState(false)
-  const [dragActiveThumbnail, setDragActiveThumbnail] = useState(false)
+  const [dragActiveCoverArt, setDragActiveCoverArt] = useState(false)
   const audioInputRef = useRef(null)
-  const thumbnailInputRef = useRef(null)
+  const coverArtInputRef = useRef(null)
   const uploadInProgressRef = useRef(false)
   
   // Animation states
@@ -41,7 +75,7 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
   useEffect(() => {
     if (!isOpen && !uploadInProgressRef.current) {
       setSelectedAudio(null)
-      setSelectedThumbnail(null)
+      setSelectedCoverArt([])
       setTitle('')
       setDescription('')
       setVisibility('private')
@@ -131,51 +165,73 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
     }
   }
 
-  const handleThumbnailDrag = (e) => {
+  const handleCoverArtDrag = (e) => {
     e.preventDefault()
     e.stopPropagation()
     if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActiveThumbnail(true)
+      setDragActiveCoverArt(true)
     } else if (e.type === 'dragleave') {
-      setDragActiveThumbnail(false)
+      setDragActiveCoverArt(false)
     }
   }
 
-  const handleThumbnailDrop = (e) => {
+  const handleCoverArtDrop = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragActiveThumbnail(false)
+    setDragActiveCoverArt(false)
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0]
-      handleThumbnailFileSelect(file)
+      handleCoverArtFilesSelect(Array.from(e.dataTransfer.files))
     }
   }
 
-  const handleThumbnailFileSelect = (file) => {
-    const ext = getFileExtension(file.name)
-    if (!ALLOWED_IMAGE_EXTENSIONS.includes(ext)) {
-      setError(`Invalid image format. Allowed: ${ALLOWED_IMAGE_EXTENSIONS.join(', ')}`)
+  const handleCoverArtFilesSelect = (files) => {
+    setError('')
+    const currentCount = selectedCoverArt.length
+    const availableSlots = MAX_COVER_ART_FILES - currentCount
+
+    if (availableSlots === 0) {
+      setError(`Maximum ${MAX_COVER_ART_FILES} cover art files allowed.`)
       return
     }
 
-    setError('')
-    setSelectedThumbnail(file)
-  }
+    const filesToAdd = files.slice(0, availableSlots)
+    let errorOccurred = false
 
-  const handleThumbnailInputChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleThumbnailFileSelect(e.target.files[0])
+    filesToAdd.forEach((file) => {
+      const ext = getFileExtension(file.name)
+      if (!ALLOWED_IMAGE_EXTENSIONS.includes(ext)) {
+        setError(`Invalid image format: ${file.name}. Allowed: ${ALLOWED_IMAGE_EXTENSIONS.join(', ')}`)
+        errorOccurred = true
+        return
+      }
+
+      if (file.size > MAX_COVER_ART_FILE_SIZE) {
+        setError(`File too large: ${file.name}. Max size: ${formatBytes(MAX_COVER_ART_FILE_SIZE)}`)
+        errorOccurred = true
+        return
+      }
+
+      const newFile = {
+        file: file,
+        id: Math.random().toString(36).substring(2, 9)
+      }
+      setSelectedCoverArt((prev) => [...prev, newFile])
+    })
+
+    if (files.length > availableSlots && !errorOccurred) {
+      setError(`Only ${availableSlots} slots available. ${files.length - availableSlots} file(s) were not added.`)
     }
   }
 
-  const handleRemoveAudio = () => {
-    setSelectedAudio(null)
-    setTitle('')
+  const handleCoverArtInputChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleCoverArtFilesSelect(Array.from(e.target.files))
+    }
   }
 
-  const handleRemoveThumbnail = () => {
-    setSelectedThumbnail(null)
+  const handleRemoveCoverArt = (fileId) => {
+    setSelectedCoverArt((prev) => prev.filter((item) => item.id !== fileId))
   }
 
   const handleUpload = async (e) => {
@@ -195,6 +251,57 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
     uploadInProgressRef.current = true
     setUploadProgress(0)
 
+    try {
+      // Step 1: Upload audio file
+      const audioResult = await uploadAudioFile()
+      if (!audioResult) {
+        setIsUploading(false)
+        uploadInProgressRef.current = false
+        return
+      }
+
+      const audioId = audioResult.id
+
+      // Step 2: Upload cover art files if any
+      if (selectedCoverArt.length > 0) {
+        const coverArtResults = await uploadCoverArtFiles(audioId)
+        if (!coverArtResults) {
+          // Audio uploaded but cover art failed - still close and show success
+          setTimeout(() => {
+            setSelectedAudio(null)
+            setSelectedCoverArt([])
+            setTitle('')
+            setDescription('')
+            setVisibility('private')
+            setUploadProgress(0)
+            setIsUploading(false)
+            uploadInProgressRef.current = false
+            setError('Audio uploaded, but some cover art files failed to upload.')
+          }, 300)
+          return
+        }
+      }
+
+      // Success: all uploads complete
+      setTimeout(() => {
+        setSelectedAudio(null)
+        setSelectedCoverArt([])
+        setTitle('')
+        setDescription('')
+        setVisibility('private')
+        setUploadProgress(0)
+        setIsUploading(false)
+        uploadInProgressRef.current = false
+        onClose()
+        onSuccess?.(audioResult)
+      }, 300)
+    } catch (_err) {
+      setIsUploading(false)
+      uploadInProgressRef.current = false
+    }
+  }
+
+  const uploadAudioFile = () => {
     return new Promise((resolve) => {
       const formData = new FormData()
       formData.append('file', selectedAudio)
@@ -203,9 +310,6 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
         formData.append('description', description.trim())
       }
       formData.append('visibility', visibility)
-      if (selectedThumbnail) {
-        formData.append('thumbnail', selectedThumbnail)
-      }
 
       const xhr = new XMLHttpRequest()
       xhr.open('POST', `${BASE_URL}/audio`)
@@ -228,38 +332,66 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
         let responseData = {}
         try {
           responseData = JSON.parse(xhr.responseText)
-        } catch (err) {
+        } catch (_parseErr) {
           // Could not parse response
         }
 
         if (xhr.status >= 200 && xhr.status < 300) {
-          setUploadProgress(100)
-          onSuccess?.(responseData.data)
-          setTimeout(() => {
-            setSelectedAudio(null)
-            setSelectedThumbnail(null)
-            setTitle('')
-            setDescription('')
-            setVisibility('private')
-            setUploadProgress(0)
-            setIsUploading(false)
-            uploadInProgressRef.current = false
-            onClose()
-            resolve(responseData.data)
-          }, 300)
+          resolve(responseData.data)
         } else {
-          const errorMsg = responseData.error || 'Upload failed'
+          const errorMsg = responseData.error || 'Audio upload failed'
           setError(errorMsg)
-          setIsUploading(false)
-          uploadInProgressRef.current = false
           resolve(null)
         }
       }
 
       xhr.onerror = () => {
         setError('Network error. Please try again.')
-        setIsUploading(false)
-        uploadInProgressRef.current = false
+        resolve(null)
+      }
+
+      xhr.send(formData)
+    })
+  }
+
+  const uploadCoverArtFiles = (audioId) => {
+    if (selectedCoverArt.length === 0) {
+      return Promise.resolve([])
+    }
+
+    // Upload all cover art files in one request to POST /audio/{id}/thumbnails
+    return new Promise((resolve) => {
+      const formData = new FormData()
+      
+      // Append all thumbnail files using the 'thumbnails' field (repeated field)
+      selectedCoverArt.forEach((coverArtObj) => {
+        formData.append('thumbnails', coverArtObj.file)
+      })
+
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${BASE_URL}/audio/${audioId}/thumbnails`)
+
+      const token = localStorage.getItem('token')
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      }
+
+      xhr.onload = () => {
+        let responseData = {}
+        try {
+          responseData = JSON.parse(xhr.responseText)
+        } catch (_parseErr) {
+          // Could not parse response
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(responseData.data)
+        } else {
+          resolve(null)
+        }
+      }
+
+      xhr.onerror = () => {
         resolve(null)
       }
 
@@ -350,10 +482,10 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
             </div>
           )}
 
-          {/* Audio Title Input */}
+          {/* Audio Title Input (Required) */}
           <div className="space-y-1">
             <label htmlFor="audio-title" className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
-              Audio Title
+              Title (Required)
             </label>
             <input
               id="audio-title"
@@ -361,7 +493,7 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               disabled={isUploading}
-              placeholder="Audio Title"
+              placeholder="Audio title"
               className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm"
               required
             />
@@ -445,65 +577,76 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
           )}
 
           {/* Cover Art Drag & Drop Zone */}
-          {!selectedThumbnail ? (
-            <div
-              onDragEnter={handleThumbnailDrag}
-              onDragOver={handleThumbnailDrag}
-              onDragLeave={handleThumbnailDrag}
-              onDrop={handleThumbnailDrop}
-              onClick={!isUploading ? () => thumbnailInputRef.current?.click() : undefined}
-              className={`
-                border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 min-h-[90px]
-                ${dragActiveThumbnail
-                  ? 'border-violet-500 bg-violet-500/5'
-                  : 'border-light-navbar/30 dark:border-dark-navbar/30 hover:border-light-text/50 dark:hover:border-dark-text/50 bg-light-body/50 dark:bg-dark-body/50'
-                }
-                ${isUploading ? 'pointer-events-none opacity-50' : ''}
-              `}
-            >
-              <input
-                ref={thumbnailInputRef}
-                type="file"
-                onChange={handleThumbnailInputChange}
-                accept={ALLOWED_IMAGE_EXTENSIONS.join(',')}
-                className="hidden"
-                disabled={isUploading}
-              />
-              
-              <svg className="w-6 h-6 text-neutral-400 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              
-              <p className="text-sm font-medium text-center">
-                Drop cover art here or <span className="text-violet-500 hover:underline">browse</span>
-              </p>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                JPG, PNG, WEBP, GIF (optional)
+          <div className="space-y-3 border-t border-light-navbar/10 dark:border-dark-navbar/10 pt-3">
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
+                Cover Art (Optional)
+              </label>
+              <p className="text-xs text-neutral-500">
+                JPG, PNG, WebP, or GIF (Max 5MB per file, up to {MAX_COVER_ART_FILES} files)
               </p>
             </div>
-          ) : (
-            <div className="bg-light-body/20 dark:bg-dark-body/20 border border-light-navbar/15 dark:border-dark-navbar/15 rounded-xl p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <svg className="w-5 h-5 text-neutral-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <p className="text-xs font-medium truncate">{selectedThumbnail.name}</p>
-                  <p className="text-xs text-neutral-500">{formatBytes(selectedThumbnail.size)}</p>
+
+            {/* Cover Art Preview Grid */}
+            {selectedCoverArt.length > 0 && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 gap-2">
+                  {selectedCoverArt.map((coverArtObj) => (
+                    <CoverArtPreview
+                      key={coverArtObj.id}
+                      file={coverArtObj.file}
+                      fileId={coverArtObj.id}
+                      onRemove={handleRemoveCoverArt}
+                      uploading={isUploading}
+                    />
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={handleRemoveThumbnail}
-                  className="p-1.5 rounded-full hover:bg-red-500/10 text-red-500 transition-colors"
-                  title="Remove cover art"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <p className="text-xs text-neutral-500">
+                  {selectedCoverArt.length} / {MAX_COVER_ART_FILES} files selected
+                </p>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Cover Art Drag & Drop Zone */}
+            {selectedCoverArt.length < MAX_COVER_ART_FILES && (
+              <div
+                onDragEnter={handleCoverArtDrag}
+                onDragOver={handleCoverArtDrag}
+                onDragLeave={handleCoverArtDrag}
+                onDrop={handleCoverArtDrop}
+                onClick={!isUploading ? () => coverArtInputRef.current?.click() : undefined}
+                className={`
+                  border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 min-h-[90px]
+                  ${dragActiveCoverArt
+                    ? 'border-violet-500 bg-violet-500/5'
+                    : 'border-light-navbar/30 dark:border-dark-navbar/30 hover:border-light-text/50 dark:hover:border-dark-text/50 bg-light-body/50 dark:bg-dark-body/50'
+                  }
+                  ${isUploading ? 'pointer-events-none opacity-50' : ''}
+                `}
+              >
+                <input
+                  ref={coverArtInputRef}
+                  type="file"
+                  onChange={handleCoverArtInputChange}
+                  accept={ALLOWED_IMAGE_EXTENSIONS.join(',')}
+                  className="hidden"
+                  disabled={isUploading}
+                  multiple
+                />
+                
+                <svg className="w-6 h-6 text-neutral-400 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                
+                <p className="text-sm font-medium text-center">
+                  Drop cover art here or <span className="text-violet-500 hover:underline">browse</span>
+                </p>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Multiple files supported
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Uploading progress bar */}
           {isUploading && (
