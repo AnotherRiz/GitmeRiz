@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import ImageModal from './ImageModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 const ALLOWED_AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.aac', '.ogg', '.wav', '.flac']
@@ -16,28 +17,43 @@ const formatBytes = (bytes) => {
 }
 
 /**
- * CoverArtPreview Component - Displays a single cover art file card with remove button.
+ * CoverArtPreview Component - Displays a single cover art file card with remove button and click-to-preview.
  */
-function CoverArtPreview({ file, fileId, onRemove, uploading }) {
+function CoverArtPreview({ file, fileId, onRemove, uploading, onPreview }) {
+  const [previewUrl, setPreviewUrl] = useState(null)
+
+  // Generate and cleanup blob URL
+  useEffect(() => {
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+
   return (
     <div className="relative flex flex-col p-2 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-lg group shadow-sm">
-      <div className="relative aspect-square rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex flex-col items-center justify-center p-2 text-center">
-        {/* Cover Art Preview */}
-        <img
-          src={URL.createObjectURL(file)}
-          alt="Cover art preview"
-          className="w-full h-full object-cover"
-        />
+      <div className="relative aspect-square rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:opacity-80" onClick={() => previewUrl && onPreview({ file, url: previewUrl, fileId })}>
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt="Cover art preview"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="animate-pulse bg-neutral-300 dark:bg-neutral-700 w-full h-full" />
+        )}
         
-        {/* Delete button */}
+        {/* Delete button - positioned at top-right */}
         {!uploading && (
           <button
             type="button"
-            onClick={() => onRemove(fileId)}
-            className="absolute inset-0 bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove(fileId)
+            }}
+            className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 transition-colors shadow-md opacity-0 group-hover:opacity-100"
             title="Remove cover art"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -50,6 +66,7 @@ function CoverArtPreview({ file, fileId, onRemove, uploading }) {
 function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
   const [selectedAudio, setSelectedAudio] = useState(null)
   const [selectedCoverArt, setSelectedCoverArt] = useState([]) // Array of { file, id }
+  const [previewingCoverArt, setPreviewingCoverArt] = useState(null) // { file, url, fileId } for click-to-preview
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [visibility, setVisibility] = useState('private')
@@ -603,6 +620,7 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
                       fileId={coverArtObj.id}
                       onRemove={handleRemoveCoverArt}
                       uploading={isUploading}
+                      onPreview={setPreviewingCoverArt}
                     />
                   ))}
                 </div>
@@ -726,8 +744,19 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
           </div>
         </form>
       </div>
+
+      {/* Preview Modal - click-to-preview for cover art */}
+      {previewingCoverArt && (
+        <ImageModal
+          imageUrl={previewingCoverArt.url}
+          title="Cover Art Preview"
+          disableDownload={true}
+          onClose={() => setPreviewingCoverArt(null)}
+        />
+      )}
     </div>
   )
 }
+
 
 export default UploadAudioModal
