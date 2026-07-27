@@ -213,6 +213,54 @@ Video player page for streaming and watching a single video.
 
 ---
 
+## MyAudio — `/:username/audio` (protected, owner-only)
+
+**File:** `MyAudio.jsx`
+
+The user's private audio workspace for managing uploads and viewing all personal audio items.
+
+### Access control
+
+- Loader while auth resolves; redirect to `/login` if unauthenticated.
+- **Owner check:** if the `:username` param ≠ the logged-in user's username, a "Forbidden" screen is shown with a button back to the user's own audio.
+
+### Data Sources
+
+- **Pinned audio**: `GET /audio/me/pinned` (max 8 items, ordered by `pin_order`)
+- **All audio**: `GET /audio` (fetches all items, filtered to current user and excludes pinned items)
+
+### Sections
+
+1. **Pinned** — up to 8 pinned audio items in a responsive grid. Always rendered: if empty, shows a dashed-border placeholder with message "No pinned audio. Click the Pin option on any audio card below to feature it here."
+2. **Divider** — Always visible between Pinned and Audio sections. Uses `border-light-card-border dark:border-dark-card-border border-t-2 my-10` styling.
+3. **Audio** — All unpinned audio items in a grid.
+
+### Per-audio owner actions
+
+Each audio card displays owner-only actions via a hover-triggered dropdown menu (⋮ button, top-right):
+
+- **Edit** → opens `EditAudioModal` to update title, description, and visibility. Submits `PATCH /audio/{id}` with the three fields.
+- **Delete** → shows `ConfirmModal` for confirmation, then calls `DELETE /audio/{id}` to remove the audio.
+  - Deleted audio items are removed from both pinned and main grids.
+- **Pin/Unpin** → `PATCH /audio/{id}` with `{ pinned: true/false }` (enforces the 8-pin limit client-side with modal feedback).
+- **Reorder pins** → `PATCH /audio/reorder-pins` (drag-and-drop via drag handle on pinned items).
+
+### Modal dialogs
+
+- **EditAudioModal**: For editing audio metadata (title, description, visibility). Shows cover art (with music note placeholder if no thumbnail), title input, description textarea, and Private/Public toggle.
+- **ConfirmModal**: For delete confirmation, pin limit warning, and generic alerts.
+
+### Empty states
+
+- **No audio at all** (both pinned and unpinned empty): Shows full "No audio yet" empty state with prompt to upload.
+- **Only pinned audio**: Pinned section displays pinned items, divider shows, Audio section displays "No other audio." (not the full empty state).
+
+### Other features
+
+- **Upload**: `UploadAudioModal` can be minimized to continue in the background.
+
+---
+
 ## Listen — `/listen/:shortId`
 
 **File:** `Listen.jsx`

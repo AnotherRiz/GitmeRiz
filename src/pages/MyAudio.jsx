@@ -316,54 +316,8 @@ function MyAudio() {
           </div>
         )}
 
-        {/* Pinned audio section */}
-        {!loading && pinnedAudio.length > 0 && (
-          <>
-            <div className="mb-2">
-              <h2 className="text-lg font-bold text-light-text dark:text-dark-text">Pinned</h2>
-              <p className="text-xs opacity-60 mt-0.5">Drag to reorder your pinned audio ({pinnedAudio.length}/8)</p>
-            </div>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-              modifiers={[restrictToParentElement]}
-            >
-              <SortableContext
-                items={pinnedOrder}
-                strategy={rectSortingStrategy}
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 mb-8">
-                  {pinnedOrder.map((id) => {
-                    const audio = pinnedAudio.find((a) => a.id === id)
-                    return audio ? (
-                      <SortableAudioCard
-                        key={audio.id}
-                        audio={audio}
-                        onEdit={() => setEditingAudio(audio)}
-                        onDelete={(e, a) => handleDeleteClick(e, a)}
-                        onTogglePin={handleTogglePin}
-                      />
-                    ) : null
-                  })}
-                </div>
-              </SortableContext>
-            </DndContext>
-            <hr className="my-8 border-neutral-200 dark:border-neutral-800" />
-          </>
-        )}
-
-        {/* Loading state */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="aspect-square w-full rounded-xl bg-neutral-200 dark:bg-neutral-800" />
-                <div className="mt-2 h-4 bg-neutral-200 dark:bg-neutral-800 rounded w-3/4" />
-              </div>
-            ))}
-          </div>
-        ) : audioItems.length === 0 ? (
+        {/* Full empty state: no audio at all (both pinned and unpinned) */}
+        {audioItems.length === 0 && pinnedAudio.length === 0 && !loading ? (
           <div className="text-center py-20 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl p-8">
             <svg className="w-12 h-12 text-neutral-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
@@ -372,18 +326,81 @@ function MyAudio() {
             <p className="text-sm text-neutral-500 mt-1">Click the "Upload Audio" button above to upload your first audio.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {audioItems.map((audio) => (
-              <AudioCard
-                key={audio.id}
-                audio={audio}
-                showActions
-                onEdit={() => setEditingAudio(audio)}
-                onDelete={(e, a) => handleDeleteClick(e, a)}
-                onTogglePin={handleTogglePin}
-              />
-            ))}
-          </div>
+          <>
+            {/* Pinned audio section (Task 1: Always render) */}
+            <div className="mb-10">
+              <h2 className="text-lg font-bold mb-4">Pinned</h2>
+
+              {pinnedAudio.length === 0 ? (
+                <div className="border border-dashed border-light-navbar/30 dark:border-dark-navbar/30 rounded-2xl p-8 text-center text-sm text-neutral-500">
+                  No pinned audio. Click the Pin option on any audio card below to feature it here.
+                </div>
+              ) : (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                  modifiers={[restrictToParentElement]}
+                >
+                  <SortableContext
+                    items={pinnedOrder}
+                    strategy={rectSortingStrategy}
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
+                      {pinnedOrder.map((id) => {
+                        const audio = pinnedAudio.find((a) => a.id === id)
+                        return audio ? (
+                          <SortableAudioCard
+                            key={audio.id}
+                            audio={audio}
+                            onEdit={() => setEditingAudio(audio)}
+                            onDelete={(e, a) => handleDeleteClick(e, a)}
+                            onTogglePin={handleTogglePin}
+                          />
+                        ) : null
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </div>
+
+            {/* Visual divider (Task 2: Always render with updated style) */}
+            <hr className="my-10 border-light-card-border dark:border-dark-card-border border-t-2" />
+
+            {/* Main audio grid (Task 3: Add heading, Task 4: Fix empty state logic) */}
+            <div>
+              <h2 className="text-lg font-bold mb-6">Audio</h2>
+
+              {loading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="animate-pulse">
+                      <div className="aspect-square w-full rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+                      <div className="mt-2 h-4 bg-neutral-200 dark:bg-neutral-800 rounded w-3/4" />
+                    </div>
+                  ))}
+                </div>
+              ) : audioItems.length === 0 ? (
+                <div className="text-center py-10 text-sm text-neutral-500">
+                  No other audio.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {audioItems.map((audio) => (
+                    <AudioCard
+                      key={audio.id}
+                      audio={audio}
+                      showActions
+                      onEdit={() => setEditingAudio(audio)}
+                      onDelete={(e, a) => handleDeleteClick(e, a)}
+                      onTogglePin={handleTogglePin}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
