@@ -9,15 +9,24 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
  * Full-screen image viewer with zoom in/out and grab-to-pan support.
  * 
  * Features:
- * - Fetch-based image loading to detect 401/403 errors
+ * - Fetch-based image loading to detect 401/403 errors OR direct URL support
  * - Custom grab/grabbing cursor animation while panning
  * - Zoom limits to keep image in viewport
  * - Click outside image to close
  * - Friendly error pages for unauthorized access
+ * - Option to disable download button for unsaved files
+ * 
+ * Props:
+ * - image: Gallery image object (with id, title, short_id) for network-based loading
+ * - imageUrl: Direct image URL string (bypasses network access checks) - use for local blob URLs or direct links
+ * - title: Optional title override (used when imageUrl is provided)
+ * - disableDownload: Boolean to hide/disable download button (default: false)
+ * - onClose: Callback when modal closes
  */
-function ImageModal({ image, onClose }) {
+function ImageModal({ image, imageUrl, title: titleProp, disableDownload = false, onClose }) {
   const navigate = useNavigate()
   const shortId = getShortId(image)
+  const isDirectUrl = !!imageUrl
   const [imageSrc, setImageSrc] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null) // { code: 401 | 403 } or string
@@ -109,50 +118,62 @@ function ImageModal({ image, onClose }) {
     }, 300)
   }
 
-  // Load image with fetch to detect 401/403
+  // Load image with fetch to detect 401/403 OR use direct URL
   useEffect(() => {
-    if (!shortId) {
-      setLoading(false)
-      setError('No image ID provided')
-      return
-    }
-
     let cancelled = false
 
-    async function checkImageAccess() {
+    async function loadImage() {
       try {
-        const previewUrl = `${BASE_URL}/gallery/p/${shortId}`
-        const rawUrl = `${BASE_URL}/gallery/r/${shortId}` // Keep raw URL for potential future use
-        
-        // Fetch dengan HEAD request untuk check access tanpa download image
-        const token = localStorage.getItem('token')
-        const headers = {}
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`
-        }
-
-        const response = await fetch(previewUrl, {
-          method: 'HEAD', // Only check headers, don't download body
-          credentials: 'include',
-          headers,
-        })
-
-        if (cancelled) return
-
-        if (response.ok) {
-          // Success: set image src to preview URL for display
-          setImageSrc(previewUrl)
+        if (isDirectUrl) {
+          // Direct URL path: bypass access checks, use URL directly
+          if (!imageUrl) {
+            setError('No image URL provided')
+            setLoading(false)
+            return
+          }
+          setImageSrc(imageUrl)
           setError(null)
-        } else if (response.status === 401) {
-          setError({ code: 401 })
-        } else if (response.status === 403) {
-          setError({ code: 403 })
+          setLoading(false)
         } else {
-          setError('Failed to load image')
+          // Gallery image path: check access with HEAD request first
+          if (!shortId) {
+            setError('No image ID provided')
+            setLoading(false)
+            return
+          }
+
+          const previewUrl = `${BASE_URL}/gallery/p/${shortId}`
+          
+          // Fetch dengan HEAD request untuk check access tanpa download image
+          const token = localStorage.getItem('token')
+          const headers = {}
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`
+          }
+
+          const response = await fetch(previewUrl, {
+            method: 'HEAD', // Only check headers, don't download body
+            credentials: 'include',
+            headers,
+          })
+
+          if (cancelled) return
+
+          if (response.ok) {
+            // Success: set image src to preview URL for display
+            setImageSrc(previewUrl)
+            setError(null)
+          } else if (response.status === 401) {
+            setError({ code: 401 })
+          } else if (response.status === 403) {
+            setError({ code: 403 })
+          } else {
+            setError('Failed to load image')
+          }
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('Error checking image access:', err)
+          console.error('Error loading image:', err)
           setError('Network error')
         }
       } finally {
@@ -162,13 +183,12 @@ function ImageModal({ image, onClose }) {
       }
     }
 
-    checkImageAccess()
+    loadImage()
 
-    // No need to cleanup blob URL anymore
     return () => {
       cancelled = true
     }
-  }, [shortId])
+  }, [shortId, imageUrl, isDirectUrl])
 
   // Reset position ketika scale kembali ke 1.0
   useEffect(() => {
@@ -272,9 +292,15 @@ function ImageModal({ image, onClose }) {
     }
   }
 
-  // Download raw image with authentication
+  // Download raw image with authentication (skip if disabled)
   const handleDownload = async () => {
-    if (downloading) return
+    if (downloading || disableDownload) return
+    
+    // Direct URL images don't support download
+    if (isDirectUrl) {
+      setDownloadError('Download not available for this image')
+      return
+    }
     
     setDownloading(true)
     try {
@@ -402,7 +428,7 @@ function ImageModal({ image, onClose }) {
           isClosing ? '-translate-y-full' : isOpen ? 'translate-y-0' : '-translate-y-full'
         }`}
       >
-        <h2 className="text-white text-lg font-medium truncate pr-4">{image.title}</h2>
+        <h2 className="text-white text-lg font-medium truncate pr-4">{titleProp || image?.title || 'Image'}</h2>
         <button
           onClick={handleClose}
           className="p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
@@ -418,24 +444,26 @@ function ImageModal({ image, onClose }) {
       <div className={`zoom-controls absolute bottom-4 right-4 z-10 flex flex-col gap-2 transition-transform duration-300 ease-out ${
         isClosing ? 'translate-y-full' : isOpen ? 'translate-y-0' : 'translate-y-full'
       }`}>
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className="p-3 bg-white/90 dark:bg-gray-800/90 text-gray-900 dark:text-white rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Download image"
-        >
-          {downloading ? (
-            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-          )}
-        </button>
+        {!disableDownload && (
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="p-3 bg-white/90 dark:bg-gray-800/90 text-gray-900 dark:text-white rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Download image"
+          >
+            {downloading ? (
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            )}
+          </button>
+        )}
         <button
           onClick={handleZoomIn}
           disabled={scale >= 4}
@@ -499,7 +527,7 @@ function ImageModal({ image, onClose }) {
         >
           <img
             src={imageSrc}
-            alt={image.title}
+            alt={titleProp || image?.title || 'Image'}
             className="select-none block"
             draggable={false}
             style={{

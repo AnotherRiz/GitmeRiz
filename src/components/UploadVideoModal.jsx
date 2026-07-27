@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import ImageModal from './ImageModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
@@ -78,32 +79,49 @@ function VideoPreview({ fileObj, onRemove, uploading }) {
 }
 
 /**
- * ThumbnailPreview Component - Displays selected thumbnail preview with remove button.
+ * ThumbnailPreview Component - Displays selected thumbnail preview with remove button and click-to-preview.
  */
-function ThumbnailPreview({ file, onRemove, uploading }) {
+function ThumbnailPreview({ file, onRemove, uploading, onPreview }) {
+  const [previewUrl, setPreviewUrl] = useState(null)
+
+  // Generate and cleanup blob URL
+  useEffect(() => {
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+
   return (
-    <div className="relative inline-block">
-      <div className="w-24 h-24 rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center group">
-        <img
-          src={URL.createObjectURL(file)}
-          alt="Thumbnail preview"
-          className="w-full h-full object-cover"
-        />
-        
-        {/* Remove button */}
-        {!uploading && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="absolute inset-0 bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
-            title="Remove thumbnail"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <div className="relative inline-block group">
+      <div className="w-24 h-24 rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center cursor-pointer transition-all hover:opacity-90" onClick={() => previewUrl && onPreview({ file, url: previewUrl })}>
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt="Thumbnail preview"
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
+        ) : (
+          <div className="animate-pulse bg-neutral-300 dark:bg-neutral-700 w-full h-full" />
         )}
       </div>
+        
+      {/* Remove button - positioned at top-right corner */}
+      {!uploading && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
+          className="absolute top-0 right-0 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 transition-colors shadow-md opacity-0 group-hover:opacity-100 transform translate-x-1 -translate-y-1"
+          title="Remove thumbnail"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }
@@ -115,6 +133,7 @@ function ThumbnailPreview({ file, onRemove, uploading }) {
 function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
   const [selectedFile, setSelectedFile] = useState(null)
   const [selectedThumbnail, setSelectedThumbnail] = useState(null)
+  const [previewingThumbnail, setPreviewingThumbnail] = useState(null) // { file, url } for click-to-preview
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [visibility, setVisibility] = useState('private')
@@ -603,6 +622,7 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
                   file={selectedThumbnail}
                   onRemove={handleRemoveThumbnail}
                   uploading={uploading}
+                  onPreview={setPreviewingThumbnail}
                 />
               </div>
             )}
@@ -717,6 +737,16 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
           </div>
         </form>
       </div>
+
+      {/* Preview Modal - click-to-preview for custom thumbnail */}
+      {previewingThumbnail && (
+        <ImageModal
+          imageUrl={previewingThumbnail.url}
+          title="Thumbnail preview"
+          disableDownload={true}
+          onClose={() => setPreviewingThumbnail(null)}
+        />
+      )}
     </div>
   )
 }

@@ -276,6 +276,13 @@ Audio player page for streaming and listening to a single audio track.
 ### Page Layout
 
 1. **Cover art** — Displays audio thumbnail (aspect square) with fallback placeholder.
+   - **For owners** (multiple cover art): Shows an interactive carousel using `AudioCoverCarousel` component:
+     - **Swipe/drag gestures**: Swipe left/right (or click-and-drag on desktop) to browse through cover art.
+     - **Keyboard navigation**: Arrow keys (← / →) also work.
+     - **Click-to-preview**: Click the current cover art image to open a full-size preview modal with zoom and pan support.
+     - **Infinite loop**: Seamlessly wraps around at the start/end of the thumbnail list.
+     - **No UI controls visible**: Arrows, slide counter, and dot indicators have been removed for a clean look. Interactions are gesture-driven and keyboard-friendly.
+   - **For non-owners** (or single thumbnail): Shows a static single image (no carousel).
 2. **Audio player** — Native HTML5 audio element with browser-default controls.
 3. **Title** — Display name with a 3-dot menu (owner-only).
 4. **Owner actions** (owner-only) — 3-dot vertical menu with a single "Edit" item that opens `EditAudioModal` to update title, description, and visibility.

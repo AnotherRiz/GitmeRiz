@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import ImageModal from './ImageModal'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
@@ -112,7 +113,7 @@ const thumbnailQueue = new ThumbnailQueue(3)
 /**
  * ThumbnailPreview Component - Handles individual thumbnail with proper cleanup
  */
-function ThumbnailPreview({ fileObj, onRemove, uploading, selectedFilesCount }) {
+function ThumbnailPreview({ fileObj, onRemove, uploading, selectedFilesCount, onPreview }) {
   // Cleanup blob URL when component unmounts (prevents memory leak)
   useEffect(() => {
     return () => {
@@ -124,7 +125,7 @@ function ThumbnailPreview({ fileObj, onRemove, uploading, selectedFilesCount }) 
 
   return (
     <div className="relative flex flex-col p-2 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-xl group shadow-sm">
-      <div className="relative aspect-video rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+      <div className="relative aspect-video rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center cursor-pointer transition-all hover:opacity-80" onClick={() => fileObj.previewUrl && onPreview(fileObj)}>
         {fileObj.previewUrl ? (
           <img
             src={fileObj.previewUrl}
@@ -184,7 +185,10 @@ function ThumbnailPreview({ fileObj, onRemove, uploading, selectedFilesCount }) 
       {!uploading && fileObj.status !== 'success' && (
         <button
           type="button"
-          onClick={() => onRemove(fileObj.id)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove(fileObj.id)
+          }}
           className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full hover:bg-red-600 transition-colors shadow-md opacity-0 group-hover:opacity-100"
           title="Remove file"
         >
@@ -205,6 +209,7 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
   const [progress, setProgress] = useState(0)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [previewingFile, setPreviewingFile] = useState(null) // For click-to-preview
   const fileInputRef = useRef(null)
   const uploadInProgressRef = useRef(false) // Track if upload is actually running
   
@@ -736,6 +741,7 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
                     onRemove={handleRemoveFile}
                     uploading={uploading}
                     selectedFilesCount={selectedFiles.length}
+                    onPreview={setPreviewingFile}
                   />
                 ))}
               </div>
@@ -815,6 +821,16 @@ function UploadModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
           </div>
         </form>
       </div>
+
+      {/* Preview Modal - click-to-preview for local files */}
+      {previewingFile && (
+        <ImageModal
+          imageUrl={previewingFile.previewUrl}
+          title={previewingFile.title}
+          disableDownload={true}
+          onClose={() => setPreviewingFile(null)}
+        />
+      )}
     </div>
   )
 }

@@ -96,7 +96,7 @@ Behavior:
 
 **File:** `UploadModal.jsx`
 
-The image upload experience: multi-file selection, drag & drop, paste, per-file thumbnails, parallel upload with progress, and minimize-to-background.
+The image upload experience: multi-file selection, drag & drop, paste, per-file thumbnails, parallel upload with progress, and minimize-to-background. **New:** Click any preview thumbnail to open a full-size preview modal.
 
 **Props:**
 
@@ -115,6 +115,7 @@ Highlights (see [Features](./features.md#upload-uploadmodal) for detail):
 - Uploads run in parallel with `XMLHttpRequest` progress events.
 - Fade in/out animation mirroring `ImageModal`.
 - **Paste-to-upload (Ctrl+V)** support with timestamped filenames.
+- **Click-to-preview**: Clicking any preview thumbnail opens a full-size preview using `ImageModal` with local blob URL; download is disabled for unsaved files.
 
 ---
 
@@ -122,20 +123,36 @@ Highlights (see [Features](./features.md#upload-uploadmodal) for detail):
 
 **File:** `ImageModal.jsx`
 
-Full-screen image viewer with zoom, pan, download, and animated open/close.
+Full-screen image viewer with zoom, pan, download, and animated open/close. Supports both gallery images and direct image URLs.
 
 **Props:**
 
 | Prop | Type | Description |
 | --- | --- | --- |
-| `image` | `object` | Gallery item to display (needs `short_id`, `title`) |
+| `image` | `object` (optional) | Gallery item to display (needs `short_id`, `title`, `id`, `visibility`); uses network-based loading |
+| `imageUrl` | `string` (optional) | Direct image URL (bypass access checks); for local blob URLs or external images |
+| `title` | `string` (optional) | Title override (used with `imageUrl` when `image` is not provided) |
+| `disableDownload` | `boolean` | Default `false`. If `true`, hides/disables the download button (useful for local unsaved files) |
 | `onClose` | `() => void` | Close handler |
+
+**Usage modes:**
+
+1. **Gallery image mode** (existing): Pass `image` object; modal verifies access via HEAD request and shows friendly 401/403 screens.
+   ```jsx
+   <ImageModal image={galleryItem} onClose={closeHandler} />
+   ```
+
+2. **Direct URL mode** (new): Pass `imageUrl` and optionally `title`; skips access checks. Use for local files or external images.
+   ```jsx
+   <ImageModal imageUrl={blobUrl} title="Preview" disableDownload={true} onClose={closeHandler} />
+   ```
 
 Highlights (see [Features](./features.md#image-viewer-imagemodal)):
 
-- Loads the **preview** variant; verifies access with a `HEAD` request and shows friendly 401/403 screens.
+- **Network-based loading (gallery mode)**: Loads the **preview** variant; verifies access with a `HEAD` request.
+- **Direct URL loading (preview mode)**: Bypasses network checks; use for local blob URLs created during upload.
 - Zoom via buttons, mouse wheel, and double-click; grab-to-pan when zoomed with bounds clamping.
-- **Download** button fetches the **raw** image (auth-aware) and triggers a browser download.
+- **Download** button (hidden if `disableDownload={true}`): Fetches the **raw** image (auth-aware) and triggers a browser download. Only available in gallery mode.
 - Esc resets zoom first, then closes; body scroll is locked while open.
 
 ---
@@ -342,6 +359,39 @@ Behavior:
 
 ---
 
+## AudioCoverCarousel
+
+**File:** `AudioCoverCarousel.jsx`
+
+Infinite-loop carousel for browsing multiple cover art images. Supports swipe/drag gestures on touch and desktop, keyboard navigation, and click-to-preview. Used on the Listen page to allow owners to browse their audio's cover art.
+
+**Props:**
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `audioId` | `string \| number` | The audio item ID (numeric) |
+| `thumbnails` | `array` | Array of thumbnail objects with `id` (from API response) |
+
+Behavior:
+
+- **Zero thumbnails**: Shows a music note placeholder icon.
+- **Single thumbnail**: Displays static image (no carousel); clicking opens full-size preview.
+- **Multiple thumbnails**:
+  - **Infinite loop**: Swiping past the last image wraps to the first, and vice versa.
+  - **Swipe/drag gestures**: On touch devices, swipe left → next slide, swipe right → previous slide. On desktop, click-and-drag with the mouse (Pointer Events API for unified support).
+  - **Drag threshold**: Minimum 50px movement required to register as a swipe; shorter movements are ignored (e.g., accidental clicks).
+  - **Keyboard navigation**: Arrow keys (← / →) still work and do not interfere with swiping.
+  - **Click-to-preview**: Clicking the current image opens a full-size preview modal (using `ImageModal` with the current thumbnail URL) without triggering a swipe.
+  - **Visual feedback**: Cursor shows `grab` idle and `grabbing` while dragging.
+  - **Smooth transitions**: Fade between slides (500ms ease-in-out).
+
+**UI Elements:**
+- **Removed**: Left/right arrow navigation buttons.
+- **Removed**: Slide counter badge (e.g. "4/20").
+- **Removed**: Dot navigation indicators.
+
+---
+
 ## EditAudioModal
 
 **File:** `EditAudioModal.jsx`
@@ -374,7 +424,7 @@ Behavior:
 
 **File:** `UploadVideoModal.jsx`
 
-Modal for uploading one or more video files with metadata (title, description, visibility). Supports drag-and-drop, multi-file selection, and real-time upload progress.
+Modal for uploading one or more video files with metadata (title, description, visibility). Supports drag-and-drop, multi-file selection, and real-time upload progress. **New:** Click the custom thumbnail preview to open a full-size preview modal.
 
 **Props:**
 
@@ -393,6 +443,7 @@ Behavior:
 - **Per-file progress**: Shows upload progress bar and upload percentage per file.
 - **Metadata** (for single uploads): Title and description inputs. For bulk uploads, metadata is not displayed (same title and description applied to all selected files).
 - **Visibility toggle**: Private/Public buttons; defaults to Private.
+- **Custom thumbnail** (optional): Drag-and-drop a cover image; supported formats: JPG, PNG, WebP, GIF. **Click the thumbnail to preview it at full size.**
 - **Minimize**: While uploading, ESC or the Minimize button hides the modal and shows a floating card (bottom-right) with upload progress. Can click "Show details" to expand the modal again.
 - **Modal width**: `max-w-xl` (wider than previous `max-w-lg`).
 - **Description field**: `rows={5}` (taller than previous `rows={3}`) for more comfortable editing.
@@ -404,7 +455,7 @@ Behavior:
 
 **File:** `UploadAudioModal.jsx`
 
-Modal for uploading a single audio file with metadata (title, description, optional cover art thumbnail, visibility).
+Modal for uploading a single audio file with metadata (title, description, optional cover art thumbnail, visibility). **New:** Click any cover art preview to open a full-size preview modal.
 
 **Props:**
 
@@ -423,7 +474,7 @@ Behavior:
 - **Metadata**:
   - **Title** (required): Auto-filled from filename if not provided.
   - **Description** (optional): Textarea for additional details.
-  - **Cover art** (optional): Separate drag-and-drop zone for uploading a thumbnail image (JPG, PNG, WebP, GIF).
+  - **Cover art** (optional): Drag-and-drop multiple thumbnail images (JPG, PNG, WebP, GIF; max 5MB each). Up to 20 files supported. **Click any thumbnail to preview it at full size.** Grid layout with 4 columns.
 - **Visibility toggle**: Private/Public buttons; defaults to Private.
 - **Minimize**: While uploading, ESC or the Minimize button hides the modal and shows a floating card (bottom-right) with upload progress.
 - **Modal width**: `max-w-xl` (wider than previous `max-w-lg`).
