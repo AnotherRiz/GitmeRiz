@@ -3,9 +3,9 @@ import { useState, useEffect, useRef } from 'react'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
 /**
- * VideoPreview Component - Handles individual video files list with upload status and progress feedback.
+ * VideoPreview Component - Displays a single video file card with upload status feedback.
  */
-function VideoPreview({ fileObj, onRemove, uploading, selectedFilesCount }) {
+function VideoPreview({ fileObj, onRemove, uploading }) {
   // Format bytes helper
   const formatBytes = (bytes) => {
     if (bytes === 0) return '0 Bytes'
@@ -39,7 +39,7 @@ function VideoPreview({ fileObj, onRemove, uploading, selectedFilesCount }) {
           </div>
         )}
         
-        {/* Success / Transcoding Overlay */}
+        {/* Success Overlay */}
         {fileObj.status === 'success' && (
           <div className="absolute inset-0 bg-green-500/80 flex flex-col items-center justify-center text-white text-[11px] font-semibold rounded-lg">
             <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,16 +60,6 @@ function VideoPreview({ fileObj, onRemove, uploading, selectedFilesCount }) {
         )}
       </div>
 
-      {/* Video Title (Editable/display title for batch) */}
-      {selectedFilesCount > 1 && (
-        <div className="mt-2 px-1">
-          <span className="text-[10px] opacity-50 block font-semibold">Video Title</span>
-          <span className="text-xs font-semibold truncate block text-light-text/95 dark:text-dark-text/95" title={fileObj.title}>
-            {fileObj.title}
-          </span>
-        </div>
-      )}
-
       {/* Delete button (only available if not uploading/success) */}
       {!uploading && fileObj.status !== 'success' && (
         <button
@@ -88,19 +78,53 @@ function VideoPreview({ fileObj, onRemove, uploading, selectedFilesCount }) {
 }
 
 /**
- * UploadVideoModal Component - Handles video drops/selections, title, visibility,
- * and bulk upload progress matching the existing UploadModal.jsx style.
+ * ThumbnailPreview Component - Displays selected thumbnail preview with remove button.
+ */
+function ThumbnailPreview({ file, onRemove, uploading }) {
+  return (
+    <div className="relative inline-block">
+      <div className="w-24 h-24 rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center group">
+        <img
+          src={URL.createObjectURL(file)}
+          alt="Thumbnail preview"
+          className="w-full h-full object-cover"
+        />
+        
+        {/* Remove button */}
+        {!uploading && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="absolute inset-0 bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Remove thumbnail"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * UploadVideoModal Component - Handles single video upload with optional custom thumbnail.
+ * Supports drag-and-drop and file selection with title, description, and visibility controls.
  */
 function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize }) {
-  const [selectedFiles, setSelectedFiles] = useState([])
-  const [singleTitle, setSingleTitle] = useState('')
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [selectedThumbnail, setSelectedThumbnail] = useState(null)
+  const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [visibility, setVisibility] = useState('private')
   const [dragActive, setDragActive] = useState(false)
+  const [thumbnailDragActive, setThumbnailDragActive] = useState(false)
   const [progress, setProgress] = useState(0)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const fileInputRef = useRef(null)
+  const thumbnailInputRef = useRef(null)
   const uploadInProgressRef = useRef(false)
   
   // Animation states
@@ -110,8 +134,9 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
   // Reset states when modal fully closes
   useEffect(() => {
     if (!isOpen && !uploadInProgressRef.current) {
-      setSelectedFiles([])
-      setSingleTitle('')
+      setSelectedFile(null)
+      setSelectedThumbnail(null)
+      setTitle('')
       setDescription('')
       setVisibility('private')
       setProgress(0)
@@ -163,9 +188,6 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
 
   // Minimized layout shown during upload
   if (isMinimized && uploading) {
-    const successCount = selectedFiles.filter(f => f.status === 'success').length
-    const totalCount = selectedFiles.length
-    
     return (
       <div className="fixed bottom-6 right-6 z-[100] animate-fade-in">
         <div className="bg-light-navbar dark:bg-dark-navbar text-light-text dark:text-dark-text border border-light-navbar/30 dark:border-dark-navbar/30 px-5 py-4 rounded-2xl shadow-2xl min-w-[280px]">
@@ -176,8 +198,8 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
               <div>
-                <p className="text-sm font-semibold">Uploading videos...</p>
-                <p className="text-xs opacity-60">{successCount} / {totalCount} complete</p>
+                <p className="text-sm font-semibold">Uploading video...</p>
+                <p className="text-xs opacity-60">{progress}% complete</p>
               </div>
             </div>
             <button
@@ -209,53 +231,79 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
 
   if (!isOpen) return null
 
-  const handleAddFiles = (newFilesList) => {
+  // Client-side thumbnail validation
+  const validateThumbnail = (file) => {
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif']
+    const maxSize = 5 * 1024 * 1024 // 5MB
+    const ext = file.name.split('.').pop().toLowerCase()
+    
+    if (!allowedExtensions.includes(ext)) {
+      setError(`Thumbnail format not supported. Allowed: ${allowedExtensions.join(', ')}`)
+      return false
+    }
+    
+    if (file.size > maxSize) {
+      setError('Thumbnail must be smaller than 5MB.')
+      return false
+    }
+    
+    return true
+  }
+
+  const handleAddFile = (filesList) => {
     setError('')
     const allowedExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv']
-    const incomingFiles = Array.from(newFilesList)
+    const incomingFiles = Array.from(filesList)
 
-    if (selectedFiles.length + incomingFiles.length > 5) {
-      setError('Maximum 5 videos allowed at a time.')
+    if (incomingFiles.length === 0) return
+
+    const file = incomingFiles[0] // Only accept first file
+    const ext = file.name.split('.').pop().toLowerCase()
+    
+    if (!allowedExtensions.includes(ext)) {
+      setError(`Unsupported format: ${file.name}. Allowed: ${allowedExtensions.join(', ')}`)
       return
     }
 
-    const processed = []
-    for (const f of incomingFiles) {
-      const ext = f.name.split('.').pop().toLowerCase()
-      if (!allowedExtensions.includes(ext)) {
-        setError(`Unsupported format: ${f.name}. Allowed: ${allowedExtensions.join(', ')}`)
-        return
-      }
-
-      const nameWithoutExt = f.name.substring(0, f.name.lastIndexOf('.'))
-      const fileId = Math.random().toString(36).substring(2, 9)
-      
-      processed.push({
-        file: f,
-        id: fileId,
-        title: nameWithoutExt,
-        progress: 0,
-        status: 'pending',
-        error: ''
-      })
-    }
-
-    setSelectedFiles(prev => {
-      const nextFiles = [...prev, ...processed]
-      if (nextFiles.length === 1) {
-        if (singleTitle) {
-          nextFiles[0].title = singleTitle
-        } else {
-          setSingleTitle(nextFiles[0].title)
-        }
-      }
-      return nextFiles
+    const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.'))
+    
+    setSelectedFile({
+      file: file,
+      id: Math.random().toString(36).substring(2, 9),
+      title: nameWithoutExt,
+      progress: 0,
+      status: 'pending',
+      error: ''
     })
+    
+    // Auto-populate title if not already set
+    if (!title) {
+      setTitle(nameWithoutExt)
+    }
+  }
+
+  const handleThumbnailChange = (filesList) => {
+    setError('')
+    const incomingFiles = Array.from(filesList)
+
+    if (incomingFiles.length === 0) return
+
+    const file = incomingFiles[0] // Only accept first file
+    
+    if (validateThumbnail(file)) {
+      setSelectedThumbnail(file)
+    }
   }
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
-      handleAddFiles(e.target.files)
+      handleAddFile(e.target.files)
+    }
+  }
+
+  const handleThumbnailFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleThumbnailChange(e.target.files)
     }
   }
 
@@ -275,7 +323,27 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
     setDragActive(false)
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleAddFiles(e.dataTransfer.files)
+      handleAddFile(e.dataTransfer.files)
+    }
+  }
+
+  const handleThumbnailDrag = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setThumbnailDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setThumbnailDragActive(false)
+    }
+  }
+
+  const handleThumbnailDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setThumbnailDragActive(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleThumbnailChange(e.dataTransfer.files)
     }
   }
 
@@ -283,29 +351,27 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
     fileInputRef.current.click()
   }
 
-  const handleRemoveFile = (id) => {
-    setSelectedFiles((prev) => {
-      const next = prev.filter((f) => f.id !== id)
-      if (next.length === 0) {
-        setSingleTitle('')
-      } else if (next.length === 1) {
-        setSingleTitle(next[0].title)
-      }
-      return next
-    })
+  const triggerThumbnailInput = () => {
+    thumbnailInputRef.current.click()
   }
 
-  const handleSingleTitleChange = (val) => {
-    setSingleTitle(val)
-    setSelectedFiles((prev) =>
-      prev.map((f) => (prev.length === 1 ? { ...f, title: val } : f))
-    )
+  const handleRemoveFile = () => {
+    setSelectedFile(null)
+  }
+
+  const handleRemoveThumbnail = () => {
+    setSelectedThumbnail(null)
   }
 
   const handleUpload = async (e) => {
     e.preventDefault()
-    if (selectedFiles.length === 0) {
-      setError('Please select at least one video.')
+    if (!selectedFile) {
+      setError('Please select a video.')
+      return
+    }
+
+    if (!title.trim()) {
+      setError('Title is required.')
       return
     }
 
@@ -314,104 +380,89 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
     setError('')
     setProgress(0)
 
-    const totalBytes = selectedFiles.reduce((acc, f) => acc + f.file.size, 0)
-    const loadedBytesMap = {}
+    try {
+      // Upload video
+      await uploadVideo()
+    } catch (err) {
+      setError(err.message || 'Upload failed')
+    } finally {
+      setUploading(false)
+      uploadInProgressRef.current = false
+    }
+  }
 
-    const uploadSingleFile = (fileObj) => {
-      return new Promise((resolve, reject) => {
-        setSelectedFiles((prev) =>
-          prev.map((f) => (f.id === fileObj.id ? { ...f, status: 'uploading' } : f))
-        )
+  const uploadVideo = () => {
+    return new Promise((resolve, reject) => {
+      const fileObj = selectedFile
+      
+      const formData = new FormData()
+      formData.append('file', fileObj.file)
+      formData.append('title', title.trim())
+      formData.append('visibility', visibility)
+      if (description.trim() !== '') {
+        formData.append('description', description.trim())
+      }
+      if (selectedThumbnail) {
+        formData.append('thumbnail', selectedThumbnail)
+      }
 
-        const formData = new FormData()
-        formData.append('file', fileObj.file)
-        formData.append('title', fileObj.title)
-        formData.append('visibility', visibility)
-        if (description.trim() !== '') {
-          formData.append('description', description.trim())
-        }
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${BASE_URL}/video`)
 
-        const xhr = new XMLHttpRequest()
-        xhr.open('POST', `${BASE_URL}/video`)
+      const token = localStorage.getItem('token')
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      }
 
-        const token = localStorage.getItem('token')
-        if (token) {
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-        }
-
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            loadedBytesMap[fileObj.id] = e.loaded
-            
-            const totalLoaded = Object.values(loadedBytesMap).reduce((acc, bytes) => acc + bytes, 0)
-            const percentage = Math.round((totalLoaded / totalBytes) * 100)
-            setProgress(Math.min(percentage, 99))
-
-            const individualPercent = Math.round((e.loaded / e.total) * 100)
-            setSelectedFiles((prev) =>
-              prev.map((f) =>
-                f.id === fileObj.id ? { ...f, progress: individualPercent } : f
-              )
-            )
-          }
-        })
-
-        xhr.onload = () => {
-          let responseData = {}
-          try {
-            responseData = JSON.parse(xhr.responseText)
-          } catch (err) {}
-
-          // Backend responds with 202 Accepted for background processing
-          if (xhr.status >= 200 && xhr.status < 300) {
-            loadedBytesMap[fileObj.id] = fileObj.file.size
-            setSelectedFiles((prev) =>
-              prev.map((f) =>
-                f.id === fileObj.id ? { ...f, status: 'success', progress: 100 } : f
-              )
-            )
-            onSuccess(responseData.data)
-            resolve(responseData.data)
-          } else {
-            const errorMsg = responseData.error || 'Upload failed'
-            setSelectedFiles((prev) =>
-              prev.map((f) =>
-                f.id === fileObj.id ? { ...f, status: 'error', error: errorMsg } : f
-              )
-            )
-            reject(new Error(errorMsg))
-          }
-        }
-
-        xhr.onerror = () => {
-          setSelectedFiles((prev) =>
-            prev.map((f) =>
-              f.id === fileObj.id ? { ...f, status: 'error', error: 'Network error' } : f
-            )
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentage = Math.round((e.loaded / e.total) * 100)
+          setProgress(Math.min(percentage, 99))
+          
+          setSelectedFile((prev) =>
+            prev ? { ...prev, progress: percentage } : null
           )
-          reject(new Error('Network error'))
         }
-
-        xhr.send(formData)
       })
-    }
 
-    const uploadPromises = selectedFiles
-      .filter(fileObj => fileObj.status !== 'success')
-      .map(fileObj => uploadSingleFile(fileObj))
+      xhr.onload = () => {
+        let responseData = {}
+        try {
+          responseData = JSON.parse(xhr.responseText)
+        } catch (_err) {}
 
-    const results = await Promise.allSettled(uploadPromises)
-    const hasError = results.some(result => result.status === 'rejected')
+        // Backend responds with 202 Accepted for background processing
+        if (xhr.status >= 200 && xhr.status < 300) {
+          setProgress(100)
+          setSelectedFile((prev) =>
+            prev ? { ...prev, status: 'success', progress: 100 } : null
+          )
+          onSuccess(responseData.data)
+          
+          // Close modal after short delay
+          setTimeout(() => {
+            onClose()
+          }, 800)
+          
+          resolve(responseData.data)
+        } else {
+          const errorMsg = responseData.error || 'Upload failed'
+          setSelectedFile((prev) =>
+            prev ? { ...prev, status: 'error', error: errorMsg } : null
+          )
+          reject(new Error(errorMsg))
+        }
+      }
 
-    setUploading(false)
-    uploadInProgressRef.current = false
-    setProgress(100)
-    
-    if (!hasError) {
-      onClose()
-    } else {
-      setError('Some videos failed to upload. Review details below.')
-    }
+      xhr.onerror = () => {
+        setSelectedFile((prev) =>
+          prev ? { ...prev, status: 'error', error: 'Network error' } : null
+        )
+        reject(new Error('Network error'))
+      }
+
+      xhr.send(formData)
+    })
   }
 
   return (
@@ -430,12 +481,7 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
       }`}>
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-light-navbar/10 dark:border-dark-navbar/10">
-          <div className="flex items-baseline gap-2">
-            <h2 className="text-xl font-bold">Upload Video</h2>
-            {selectedFiles.length > 1 && (
-              <span className="text-xs opacity-60">({selectedFiles.length}/5)</span>
-            )}
-          </div>
+          <h2 className="text-xl font-bold">Upload Video</h2>
           <button
             onClick={handleModalClose}
             className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
@@ -455,118 +501,148 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
             </div>
           )}
 
-          {/* Single Video Title Input */}
-          {selectedFiles.length <= 1 && (
-            <div className="space-y-1">
-              <label htmlFor="video-title" className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
-                Video Title
-              </label>
-              <input
-                id="video-title"
-                type="text"
-                value={singleTitle}
-                onChange={(e) => handleSingleTitleChange(e.target.value)}
-                disabled={uploading}
-                placeholder="Video Title"
-                className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm"
-                required={selectedFiles.length === 1}
-              />
-            </div>
-          )}
+          {/* Title Input (Required) */}
+          <div className="space-y-1">
+            <label htmlFor="video-title" className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
+              Title (Required)
+            </label>
+            <input
+              id="video-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={uploading}
+              placeholder="Video title"
+              className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm"
+              required
+            />
+          </div>
 
-          {/* Single Video Description Input */}
-          {selectedFiles.length <= 1 && (
-            <div className="space-y-1">
-              <label htmlFor="video-description" className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
-                Description (Optional)
-              </label>
-              <textarea
-                id="video-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={uploading}
-                placeholder="Video description"
-                rows={5}
-                className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm resize-none no-scrollbar"
-              />
-            </div>
-          )}
+          {/* Description Input */}
+          <div className="space-y-1">
+            <label htmlFor="video-description" className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
+              Description (Optional)
+            </label>
+            <textarea
+              id="video-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={uploading}
+              placeholder="Video description"
+              rows={4}
+              className="w-full px-4 py-3 rounded-xl border border-light-navbar/30 dark:border-dark-navbar/30 bg-light-body dark:bg-dark-body focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-sm resize-none no-scrollbar"
+            />
+          </div>
 
-          {/* Drag & Drop Zone */}
-          {selectedFiles.length < 5 && (
-            <div
-              onDragEnter={handleDrag}
-              onDragOver={handleDrag}
-              onDragLeave={handleDrag}
-              onDrop={handleDrop}
-              onClick={!uploading ? triggerFileInput : undefined}
-              className={`
-                border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 min-h-[120px]
-                ${dragActive
-                  ? 'border-violet-500 bg-violet-500/5'
-                  : 'border-light-navbar/30 dark:border-dark-navbar/30 hover:border-light-text/50 dark:hover:border-dark-text/50 bg-light-body/50 dark:bg-dark-body/50'
-                }
-                ${uploading ? 'pointer-events-none opacity-50' : ''}
-              `}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                onChange={handleFileChange}
-                accept="video/mp4,video/webm,video/ogg,video/quicktime,video/x-matroska,video/*"
-                className="hidden"
-                multiple
-                disabled={uploading}
-              />
-              
-              <svg className="w-8 h-8 text-neutral-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              
-              <p className="text-sm font-medium text-center">
-                Drop video here or <span className="text-violet-500 hover:underline">browse</span>
-              </p>
-              <p className="text-xs text-neutral-500 mt-1">
-                Supports MP4, WebM, MOV, AVI, MKV up to 5 files.
-              </p>
-            </div>
-          )}
+          {/* Video Drag & Drop Zone */}
+          <div
+            onDragEnter={handleDrag}
+            onDragOver={handleDrag}
+            onDragLeave={handleDrag}
+            onDrop={handleDrop}
+            onClick={!uploading ? triggerFileInput : undefined}
+            className={`
+              border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 min-h-[120px]
+              ${dragActive
+                ? 'border-violet-500 bg-violet-500/5'
+                : 'border-light-navbar/30 dark:border-dark-navbar/30 hover:border-light-text/50 dark:hover:border-dark-text/50 bg-light-body/50 dark:bg-dark-body/50'
+              }
+              ${uploading ? 'pointer-events-none opacity-50' : ''}
+            `}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileChange}
+              accept="video/mp4,video/webm,video/ogg,video/quicktime,video/x-matroska,video/*"
+              className="hidden"
+              disabled={uploading}
+            />
+            
+            <svg className="w-8 h-8 text-neutral-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            
+            <p className="text-sm font-medium text-center">
+              Drop video here or <span className="text-violet-500 hover:underline">browse</span>
+            </p>
+            <p className="text-xs text-neutral-500 mt-1">
+              Supports MP4, WebM, MOV, AVI, MKV
+            </p>
+          </div>
 
-          {/* Selected Previews */}
-          {selectedFiles.length > 0 && (
+          {/* Selected Video Preview */}
+          {selectedFile && (
             <div className="space-y-2">
               <span className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
-                Selected Videos ({selectedFiles.length})
+                Selected Video
               </span>
-              <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto p-1 border border-light-navbar/15 dark:border-dark-navbar/15 rounded-xl bg-light-body/20 dark:bg-dark-body/20 no-scrollbar">
-                {selectedFiles.map((fileObj) => (
-                  <VideoPreview
-                    key={fileObj.id}
-                    fileObj={fileObj}
-                    onRemove={handleRemoveFile}
-                    uploading={uploading}
-                    selectedFilesCount={selectedFiles.length}
-                  />
-                ))}
-              </div>
+              <VideoPreview
+                fileObj={selectedFile}
+                onRemove={handleRemoveFile}
+                uploading={uploading}
+              />
             </div>
           )}
 
-          {/* Uploading progress bar */}
-          {uploading && (
-            <div className="space-y-2 py-2">
-              <div className="flex justify-between text-xs font-semibold">
-                <span>Uploading all files...</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="w-full bg-light-body dark:bg-dark-body h-2 rounded-full overflow-hidden border border-light-navbar/10 dark:border-dark-navbar/10">
-                <div
-                  className="bg-violet-500 h-full rounded-full transition-all duration-150 ease-out"
-                  style={{ width: `${progress}%` }}
+          {/* Thumbnail Section */}
+          <div className="space-y-3 pt-3 border-t border-light-navbar/10 dark:border-dark-navbar/10">
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-light-text/70 dark:text-dark-text/70">
+                Custom Thumbnail (Optional)
+              </label>
+              <p className="text-xs text-neutral-500">
+                JPG, PNG, WebP, or GIF (Max 5MB)
+              </p>
+            </div>
+
+            {/* Thumbnail Preview */}
+            {selectedThumbnail && (
+              <div className="space-y-2">
+                <ThumbnailPreview
+                  file={selectedThumbnail}
+                  onRemove={handleRemoveThumbnail}
+                  uploading={uploading}
                 />
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Thumbnail Drag & Drop Zone */}
+            {!selectedThumbnail && (
+              <div
+                onDragEnter={handleThumbnailDrag}
+                onDragOver={handleThumbnailDrag}
+                onDragLeave={handleThumbnailDrag}
+                onDrop={handleThumbnailDrop}
+                onClick={!uploading ? triggerThumbnailInput : undefined}
+                className={`
+                  border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 min-h-[100px]
+                  ${thumbnailDragActive
+                    ? 'border-violet-500 bg-violet-500/5'
+                    : 'border-light-navbar/30 dark:border-dark-navbar/30 hover:border-light-text/50 dark:hover:border-dark-text/50 bg-light-body/50 dark:bg-dark-body/50'
+                  }
+                  ${uploading ? 'pointer-events-none opacity-50' : ''}
+                `}
+              >
+                <input
+                  ref={thumbnailInputRef}
+                  type="file"
+                  onChange={handleThumbnailFileChange}
+                  accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  disabled={uploading}
+                />
+                
+                <svg className="w-6 h-6 text-neutral-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                
+                <p className="text-sm font-medium text-center">
+                  Drop thumbnail or <span className="text-violet-500 hover:underline">browse</span>
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Visibility Toggle */}
           <div className="space-y-2 pt-3 border-t border-light-navbar/10 dark:border-dark-navbar/10">
@@ -606,6 +682,22 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
             </div>
           </div>
 
+          {/* Uploading progress bar */}
+          {uploading && (
+            <div className="space-y-2 py-2">
+              <div className="flex justify-between text-xs font-semibold">
+                <span>Uploading...</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="w-full bg-light-body dark:bg-dark-body h-2 rounded-full overflow-hidden border border-light-navbar/10 dark:border-dark-navbar/10">
+                <div
+                  className="bg-violet-500 h-full rounded-full transition-all duration-150 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Modal Footer actions */}
           <div className="flex justify-end gap-3 pt-4 border-t border-light-navbar/10 dark:border-dark-navbar/10">
             <button
@@ -617,7 +709,7 @@ function UploadVideoModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
             </button>
             <button
               type="submit"
-              disabled={uploading || selectedFiles.length === 0 || selectedFiles.every(f => f.status === 'success')}
+              disabled={uploading || !selectedFile}
               className="px-4 py-2 text-sm font-semibold rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:bg-neutral-300 dark:disabled:bg-neutral-800 disabled:text-neutral-500 disabled:opacity-50 transition-colors shadow-md"
             >
               {uploading ? 'Uploading...' : 'Upload'}

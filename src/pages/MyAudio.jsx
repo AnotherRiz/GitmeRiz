@@ -87,7 +87,7 @@ function MyAudio() {
   const fetchMyAudio = async () => {
     setLoading(true)
     try {
-      const res = await get('/audio')
+      const res = await get('/audio/me')
 
       if (!isMountedRef.current) return
 

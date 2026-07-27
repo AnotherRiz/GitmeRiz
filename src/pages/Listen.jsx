@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { get } from '../lib/api'
 import EditAudioModal from '../components/EditAudioModal'
+import AudioCoverCarousel from '../components/AudioCoverCarousel'
 import { formatFullDate } from '../lib/timeAgo'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000'
 
 /**
  * Audio player page.
- * Displays cover art, audio player, title with edit button, and description.
+ * Displays cover art (carousel if multiple), audio player, title with edit button, and description.
  * Uses short_id-based endpoints matching the Watch page pattern.
  */
 function Listen() {
@@ -20,22 +21,26 @@ function Listen() {
   const [errorType, setErrorType] = useState(null) // null, '401', '403', 'generic'
   const [loadingMetadata, setLoadingMetadata] = useState(true)
   const [editingAudio, setEditingAudio] = useState(null)
+  const [thumbnails, setThumbnails] = useState([]) // Array of thumbnail objects with id
   const audioRef = useRef(null)
   const isMountedRef = useRef(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
 
-  // Get the cover art URL (short_id endpoint)
-  const getThumbnailUrl = () => {
-    if (audio?.thumbnail_path) {
-      return `${BASE_URL}/audio/thumb/${shortId}`
-    }
-    return null
-  }
-
   // Get the audio stream URL (short_id endpoint)
   const getAudioUrl = () => {
     return `${BASE_URL}/audio/download/${shortId}`
+  }
+
+  // Fetch thumbnails for owner-only (for carousel display)
+  const fetchThumbnails = async (audioId) => {
+    const res = await get(`/audio/${audioId}/thumbnails`)
+
+    if (res.ok && Array.isArray(res.data)) {
+      setThumbnails(res.data)
+    } else {
+      setThumbnails([])
+    }
   }
 
   // Close menu when clicking outside / on Esc
@@ -79,6 +84,10 @@ function Listen() {
 
         if (res.ok && res.data) {
           setAudio(res.data)
+          // If user is the owner, fetch thumbnails for carousel
+          if (user && res.data.user_id === user.id) {
+            fetchThumbnails(res.data.id)
+          }
         } else if (res.error?.includes('401')) {
           setErrorType('401')
         } else if (res.error?.includes('403')) {
@@ -179,19 +188,26 @@ function Listen() {
       {!errorType && audio && (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
           {/* Cover art (1st in order) */}
-          <div className="rounded-2xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center mb-8 aspect-square max-w-md mx-auto">
-            {getThumbnailUrl() ? (
+          {/* For owner: show infinite-loop carousel if multiple thumbnails, otherwise show primary or fallback */}
+          {/* For non-owner: show single primary thumbnail or fallback */}
+          {user && audio.user_id === user.id && thumbnails.length > 0 ? (
+            <AudioCoverCarousel audioId={audio.id} thumbnails={thumbnails} />
+          ) : (
+            <div className="rounded-2xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center mb-8 aspect-square max-w-md mx-auto">
               <img
-                src={getThumbnailUrl()}
+                src={`${BASE_URL}/audio/t/${shortId}`}
                 alt={audio.title}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none'
+                }}
               />
-            ) : (
+              {/* Fallback icon if image doesn't load */}
               <svg className="w-24 h-24 text-neutral-500 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
               </svg>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Audio player (2nd in order) */}
           <div className="mb-8 bg-light-card dark:bg-dark-card border border-light-card-border dark:border-dark-card-border rounded-2xl p-6">
