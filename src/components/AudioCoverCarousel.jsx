@@ -46,7 +46,7 @@ function AudioCoverCarousel({ audioId, thumbnails }) {
       const activeIndex = swiperRef.current?.swiper?.activeIndex || 0
       const currentThumb = thumbnails[activeIndex]
       setPreviewingImage({
-        url: `${BASE_URL}/audio/${audioId}/thumbnails/${currentThumb.id}`,
+        url: `${BASE_URL}/audio/cover/p/${currentThumb.short_id}`,
         title: `Cover Art`
       })
     }
@@ -64,16 +64,40 @@ function AudioCoverCarousel({ audioId, thumbnails }) {
 
   if (thumbnailCount === 1) {
     const thumb = thumbnails[0]
+    const isProcessing = thumb.status === 'processing' || thumb.status === 'failed_processing'
+    
     return (
-      <div className="rounded-2xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center aspect-square max-w-md mx-auto cursor-pointer transition-all hover:opacity-90" onClick={handleImageClick}>
-        <img
-          src={`${BASE_URL}/audio/${audioId}/thumbnails/${thumb.id}`}
-          alt="Audio cover art"
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            e.target.style.display = 'none'
-          }}
-        />
+      <div className="rounded-2xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center aspect-square max-w-md mx-auto cursor-pointer transition-all hover:opacity-90" onClick={isProcessing ? undefined : handleImageClick}>
+        {isProcessing ? (
+          <div className="flex flex-col items-center justify-center gap-2">
+            {thumb.status === 'processing' ? (
+              <>
+                <div className="animate-spin">
+                  <svg className="w-12 h-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-xs text-neutral-500">Processing...</p>
+              </>
+            ) : (
+              <>
+                <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4v2m0 4v2M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                </svg>
+                <p className="text-xs text-red-500">Failed to process</p>
+              </>
+            )}
+          </div>
+        ) : (
+          <img
+            src={`${BASE_URL}/audio/cover/p/${thumb.short_id}`}
+            alt="Audio cover art"
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.style.display = 'none'
+            }}
+          />
+        )}
       </div>
     )
   }
@@ -92,24 +116,50 @@ function AudioCoverCarousel({ audioId, thumbnails }) {
           aspectRatio: '1'
         }}
       >
-        {thumbnails.map((thumb) => (
-          <SwiperSlide key={thumb.id}>
-            <div 
-              className="rounded-2xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 w-full h-full cursor-pointer"
-              onClick={handleImageClick}
-            >
-              <img
-                src={`${BASE_URL}/audio/${audioId}/thumbnails/${thumb.id}`}
-                alt="Audio cover art"
-                className="w-full h-full object-cover"
-                draggable={false}
-                onError={(e) => {
-                  e.target.style.display = 'none'
-                }}
-              />
-            </div>
-          </SwiperSlide>
-        ))}
+        {thumbnails.map((thumb) => {
+          const isProcessing = thumb.status === 'processing' || thumb.status === 'failed_processing'
+          
+          return (
+            <SwiperSlide key={thumb.id}>
+              <div 
+                className="rounded-2xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 w-full h-full cursor-pointer flex items-center justify-center"
+                onClick={isProcessing ? undefined : handleImageClick}
+              >
+                {isProcessing ? (
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    {thumb.status === 'processing' ? (
+                      <>
+                        <div className="animate-spin">
+                          <svg className="w-12 h-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <p className="text-xs text-neutral-500">Processing...</p>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4v2m0 4v2M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                        </svg>
+                        <p className="text-xs text-red-500">Failed to process</p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <img
+                    src={`${BASE_URL}/audio/cover/p/${thumb.short_id}`}
+                    alt="Audio cover art"
+                    className="w-full h-full object-cover"
+                    draggable={false}
+                    onError={(e) => {
+                      e.target.style.display = 'none'
+                    }}
+                  />
+                )}
+              </div>
+            </SwiperSlide>
+          )
+        })}
       </Swiper>
 
       {/* Preview Modal - click-to-preview for current image */}

@@ -497,7 +497,7 @@ function UploadAudioModal({ isOpen, isMinimized, onClose, onSuccess, onMinimize 
         </div>
 
         {/* Form Content */}
-        <form onSubmit={handleUpload} className="flex-1 overflow-y-auto mt-4 space-y-4 pr-1">
+        <form onSubmit={handleUpload} className="flex-1 overflow-y-auto mt-4 space-y-4 pr-1 no-scrollbar">
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm px-4 py-3 rounded-xl">
               {error}

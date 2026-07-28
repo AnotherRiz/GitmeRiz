@@ -22,8 +22,8 @@ function AudioCard({ audio, showActions = false, onEdit, onDelete, onTogglePin, 
   const isPrivate = audio.visibility === 'private'
 
   const getThumbnailUrl = () => {
-    if (audio.thumbnail_path) {
-      return `${BASE_URL}/audio/${audio.id}/thumbnail`
+    if (audio.thumbnail_path && audio.short_id) {
+      return `${BASE_URL}/audio/t/${audio.short_id}`
     }
     return null
   }
