@@ -183,11 +183,10 @@ function MyAudio() {
     
     if (!isMountedRef.current) return
     
-    if (res.ok && Array.isArray(res.data)) {
-      setPinnedAudio(res.data)
-      const backendOrder = res.data.map((a) => a.id)
-      setPinnedOrder(backendOrder)
-    } else if (!res.ok) {
+    if (res.ok) {
+      // Success - keep the optimistic update (no need to re-sync from res.data)
+      // res.data is a string, not an array of audio objects
+    } else {
       // Revert on error
       setPinnedOrder(pinnedOrder)
       showAlert('Reorder Failed', res.error || 'Failed to save pinned order.')

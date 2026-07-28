@@ -29,7 +29,7 @@ function Listen() {
 
   // Get the audio stream URL (short_id endpoint)
   const getAudioUrl = () => {
-    return `${BASE_URL}/audio/download/${shortId}`
+    return `${BASE_URL}/audio/r/${shortId}`
   }
 
   // Fetch thumbnails for owner-only (for carousel display)

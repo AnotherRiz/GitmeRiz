@@ -215,51 +215,79 @@ function EditAudioModal({ isOpen, onClose, audio, onSuccess }) {
             ) : thumbnails.length > 0 ? (
               <div className="space-y-2">
                 <div className="grid grid-cols-4 gap-2">
-                  {thumbnails.map((thumb) => (
-                    <div key={thumb.id} className="relative group">
-                      <div className="aspect-square rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
-                        <img
-                          src={`${BASE_URL}/audio/${audio.id}/thumbnails/${thumb.id}`}
-                          alt="Cover art"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none'
-                          }}
-                        />
-                      </div>
-
-                      {/* Primary badge */}
-                      {thumb.is_primary && (
-                        <div className="absolute top-1 left-1 bg-violet-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
-                          Primary
+                  {thumbnails.map((thumb) => {
+                    const isProcessing = thumb.status === 'processing' || thumb.status === 'failed_processing'
+                    
+                    return (
+                      <div key={thumb.id} className="relative group">
+                        <div className="aspect-square rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+                          {isProcessing ? (
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              {thumb.status === 'processing' ? (
+                                <>
+                                  <div className="animate-spin">
+                                    <svg className="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  </div>
+                                  <p className="text-[10px] text-neutral-500">Processing...</p>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4v2m0 4v2M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                                  </svg>
+                                  <p className="text-[10px] text-red-500">Failed</p>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <img
+                              src={`${BASE_URL}/audio/cover/t/${thumb.short_id}`}
+                              alt="Cover art"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none'
+                              }}
+                            />
+                          )}
                         </div>
-                      )}
 
-                      {/* Hover actions */}
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-lg">
-                        {!thumb.is_primary && (
-                          <button
-                            type="button"
-                            onClick={() => handleSetPrimaryThumbnail(thumb.id)}
-                            disabled={updating || deletingThumbnailId === thumb.id}
-                            className="px-2 py-1 text-xs font-semibold bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors disabled:opacity-50"
-                            title="Set as primary"
-                          >
-                            Set Primary
-                          </button>
+                        {/* Primary badge */}
+                        {thumb.is_primary && (
+                          <div className="absolute top-1 left-1 bg-violet-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                            Primary
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteThumbnail(thumb.id)}
-                          disabled={updating || deletingThumbnailId === thumb.id}
-                          className="px-2 py-1 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
-                          title="Delete cover art"
-                        >
-                          {deletingThumbnailId === thumb.id ? 'Deleting...' : 'Delete'}
-                        </button>
+
+                        {/* Hover actions */}
+                        {!isProcessing && (
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 rounded-lg">
+                            {!thumb.is_primary && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrimaryThumbnail(thumb.id)}
+                                disabled={updating || deletingThumbnailId === thumb.id}
+                                className="px-2 py-1 text-xs font-semibold bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors disabled:opacity-50"
+                                title="Set as primary"
+                              >
+                                Set Primary
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteThumbnail(thumb.id)}
+                              disabled={updating || deletingThumbnailId === thumb.id}
+                              className="px-2 py-1 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
+                              title="Delete cover art"
+                            >
+                              {deletingThumbnailId === thumb.id ? 'Deleting...' : 'Delete'}
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             ) : (
